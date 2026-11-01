@@ -25,5 +25,7 @@ jobs:
         run: |
           v=$(grep -oP '<widget[^>]*\sversion="\K[\d.]+' www/config.xml)
           cp app/build/outputs/apk/release/app-release.apk CatarinaTV-$v.apk
+          # www.zip: o app que os aparelhos já instalados baixam sozinhos (atualização sem reinstalar)
+          (cd app/build/app-web && cp ../../src/main/assets/webapis-android.js . && zip -qr ../../../www.zip www webapis-android.js)
           gh release view v$v >/dev/null 2>&1 || gh release create v$v --title "Catarina TV $v" --notes "APK para Android TV"
-          gh release upload v$v CatarinaTV-$v.apk --clobber
+          gh release upload v$v CatarinaTV-$v.apk www.zip --clobber

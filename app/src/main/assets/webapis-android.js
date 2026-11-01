@@ -52,10 +52,15 @@
     (document.activeElement || document).dispatchEvent(e);
   };
 
-  // a página é desenhada em 1920×1080: escala para o tamanho da tela (o player nativo usa a mesma conta)
-  function zoom() { document.documentElement.style.zoom = window.innerWidth / 1920; }
-  zoom();
-  window.addEventListener('resize', zoom);
+  // a página é desenhada em 1920×1080: escala para o tamanho da tela (o player nativo usa a mesma conta).
+  // Ao abrir, o WebView ainda pode estar sem tamanho (largura 0): o Android chama __zoom de novo quando ele aparece
+  window.__zoom = function () {
+    var w = window.innerWidth;
+    if (w > 0) document.documentElement.style.zoom = w / 1920;
+  };
+  __zoom();
+  window.addEventListener('resize', __zoom);
+  document.addEventListener('DOMContentLoaded', __zoom);
 
   var principal = player();
   window.webapis = {

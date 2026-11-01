@@ -1,6 +1,7 @@
 package br.com.catarinatv.tv
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -12,6 +13,7 @@ import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -27,6 +29,11 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.zip.ZipInputStream
+import kotlin.concurrent.thread
 
 /* O app da Samsung (assets/www) num WebView transparente; os vídeos (ExoPlayer) ficam atrás dele, como o AVPlay na TV.
  * O JS fala com os players por window.AndroidAv (webapis-android.js faz dele o webapis.avplay). */
@@ -63,12 +70,86 @@ class MainActivity : Activity() {
             @Suppress("DEPRECATION")
             settings.allowUniversalAccessFromFileURLs = true
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            settings.textZoom = 100 // a fonte grande da acessibilidade da TV não estoura o layout de 1920×1080
             addJavascriptInterface(Ponte(), "AndroidAv")
+            addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> evaluateJavascript("window.__zoom&&__zoom()", null) }
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(v: WebView, url: String) = v.evaluateJavascript("window.__zoom&&__zoom()", null)
+            }
         }
         tela.addView(web, FrameLayout.LayoutParams(-1, -1))
         setContentView(tela)
-        web.loadUrl("file:///android_asset/www/index.html")
+        web.loadUrl(inicio())
         ui.post(relogio)
+        buscarVersao()
+    }
+
+    /* ---------- Versão nova sem reinstalar ----------
+     * A cada envio ao GitHub, o Releases ganha o www.zip (o app: telas, menus, correções). O app confere ao abrir e a cada
+     * 6 h; se mudou, baixa em segundo plano para files/ota e pergunta se atualiza agora (senão vale na próxima abertura).
+     * Mudança na parte Android (player, teclas) ainda pede o APK novo. */
+    private val prefs by lazy { getSharedPreferences("ota", MODE_PRIVATE) }
+    private val ota by lazy { File(filesDir, "ota") }
+    private val apk by lazy { packageManager.getPackageInfo(packageName, 0).lastUpdateTime } // muda a cada APK instalado
+    private var buscouEm = 0L
+    private var aviso = false // baixou e falta perguntar
+
+    // a versão baixada, se for deste APK (um APK novo traz a dele e descarta a antiga)
+    private fun inicio() =
+        if (prefs.getLong("apk", 0) == apk && File(ota, "www/index.html").exists()) "file://${ota.absolutePath}/www/index.html"
+        else "file:///android_asset/www/index.html"
+
+    private fun buscarVersao() {
+        if (System.currentTimeMillis() - buscouEm < 6 * 3600_000) return
+        buscouEm = System.currentTimeMillis()
+        thread {
+            try {
+                val c = URL("https://api.github.com/repos/strcatarinatv-spec/appAndroid/releases/latest").openConnection() as HttpURLConnection
+                c.connectTimeout = 15000; c.readTimeout = 15000
+                c.setRequestProperty("Accept", "application/vnd.github+json")
+                val assets = JSONObject(c.inputStream.bufferedReader().readText()).getJSONArray("assets")
+                val z = (0 until assets.length()).map { assets.getJSONObject(it) }.firstOrNull { it.getString("name") == "www.zip" } ?: return@thread
+                val id = z.getLong("id")
+                if (prefs.getLong("apk", 0) != apk) { // APK recém-instalado: já veio com o app desta versão
+                    ota.deleteRecursively()
+                    prefs.edit().putLong("id", id).putLong("apk", apk).apply()
+                    return@thread
+                }
+                if (id == prefs.getLong("id", 0)) return@thread
+                val novo = File(filesDir, "ota-novo").apply { deleteRecursively(); mkdirs() }
+                val base = novo.canonicalPath + File.separator
+                ZipInputStream(URL(z.getString("browser_download_url")).openStream()).use { zip ->
+                    generateSequence { zip.nextEntry }.forEach { e ->
+                        val f = File(novo, e.name)
+                        if (!f.canonicalPath.startsWith(base)) throw SecurityException(e.name) // nada fora da pasta
+                        if (e.isDirectory) f.mkdirs() else { f.parentFile?.mkdirs(); f.outputStream().use { zip.copyTo(it) } }
+                    }
+                }
+                if (!File(novo, "www/index.html").exists()) return@thread
+                ui.post {
+                    ota.deleteRecursively()
+                    if (!novo.renameTo(ota)) return@post
+                    prefs.edit().putLong("id", id).putLong("apk", apk).apply()
+                    aviso = true
+                    perguntar()
+                }
+            } catch (_: Exception) { } // sem internet ou GitHub fora: confere de novo mais tarde
+        }
+    }
+
+    // não interrompe o que está passando: com vídeo tocando, pergunta quando voltar ao app
+    private fun perguntar() {
+        if (!aviso || isFinishing || players.values.any { it.exo?.isPlaying == true }) return
+        aviso = false
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Nova versão do app")
+            .setMessage("Já está baixada. Atualizar agora?")
+            .setPositiveButton("Atualizar") { _, _ ->
+                players.values.forEach { it.fechar() }
+                web.loadUrl(inicio())
+            }
+            .setNegativeButton("Depois", null) // abre com ela na próxima vez
+            .show()
     }
 
     override fun dispatchKeyEvent(e: KeyEvent): Boolean {
@@ -88,6 +169,8 @@ class MainActivity : Activity() {
         super.onStart()
         pausados.forEach { it.exo?.playWhenReady = true }
         pausados.clear()
+        buscarVersao()
+        perguntar()
     }
     override fun onDestroy() {
         ui.removeCallbacksAndMessages(null)
