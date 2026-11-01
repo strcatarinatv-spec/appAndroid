@@ -5,7 +5,7 @@ plugins {
 
 // www/: cópia do app da Samsung (atualizar-www.ps1); versão: a mesma do config.xml dele
 val web = rootDir.resolve("www")
-val versao = Regex("""version="([\d.]+)"""").find(web.resolve("config.xml").readText())?.groupValues?.get(1) ?: "1.0.0"
+val versao = Regex("""<widget[^>]*\sversion="([\d.]+)"""").find(web.resolve("config.xml").readText())?.groupValues?.get(1) ?: "1.0.0"
 
 android {
     namespace = "br.com.catarinatv.tv"

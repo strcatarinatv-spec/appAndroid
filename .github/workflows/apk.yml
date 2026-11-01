@@ -23,7 +23,7 @@ jobs:
       - name: Publicar
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
-          v=$(grep -oP 'version="\K[\d.]+' www/config.xml | head -1)
+          v=$(grep -oP '<widget[^>]*\sversion="\K[\d.]+' www/config.xml)
           cp app/build/outputs/apk/release/app-release.apk CatarinaTV-$v.apk
           gh release view v$v >/dev/null 2>&1 || gh release create v$v --title "Catarina TV $v" --notes "APK para Android TV"
           gh release upload v$v CatarinaTV-$v.apk --clobber
