@@ -1656,54 +1656,73 @@ var App = (function () {
 
   /* ---------- Menu facilitador (OK duas vezes, ou dois cliques, com o vídeo aberto) ---------- */
 
-  // Vidro na parte de baixo: em cima, os parecidos com o que está passando (canais do mesmo grupo; filmes ou séries do
-  // mesmo grupo); embaixo, os atalhos Ao vivo, Filmes, Séries e Buscar. ◀ ▶ andam, ▲▼ trocam de fileira, OK abre,
-  // Voltar fecha. Um OK só continua fazendo o de sempre (barra de opções do canal, pausa no filme), 0,35 s depois
-  var fm = { on: false, row: 0, i: [0, 0], a: [], list: [], t: null };
+  // Vidro na parte de baixo, em fileiras: vistos por último (canais, filmes e episódios, o mais recente primeiro: OK
+  // continua de onde parou), os parecidos com o que está passando (canais do mesmo grupo; filmes ou séries do mesmo
+  // grupo) e os atalhos Ao vivo, Filmes, Séries e Buscar. ◀ ▶ andam, ▲▼ trocam de fileira, OK abre, Voltar fecha.
+  // Um OK só continua fazendo o de sempre (barra de opções do canal, pausa no filme), 0,35 s depois
+  var fm = { on: false, row: 0, i: [], rows: [], t: null };
   var FM_NAV = [['live', 'Ao vivo'], ['movies', 'Filmes'], ['series', 'Séries'], ['search', 'Buscar']];
+  function fmRecent(cur) {
+    var seen = {}, out = [];
+    Cloud.state.history.forEach(function (h) {
+      var x = app.idx[h.id], key = x && favKey(x);
+      if (!x || out.length >= 16 || x === cur || seen[key] || !okItem(x) || (x.t !== 'live' && x.t !== 'movie' && x.t !== 'ep')) return;
+      seen[key] = 1;
+      out.push(x);
+    });
+    return out;
+  }
   function fmOpen() {
     var cur = Player.liveId ? app.idx[Player.liveId] : vb.item, base = cur && cur.t === 'ep' ? cur.series : cur, g = null;
     if (base) g = find(base.t === 'live' ? app.groups.live : base.t === 'series' ? app.groups.series : app.groups.movies,
       function (x) { return x.items.indexOf(base) >= 0; });
-    fm.list = g ? g.items : [];
-    fm.a = fm.list.filter(function (x) { return x !== base && okItem(x); }).slice(0, 24);
-    $('fmT').textContent = !fm.a.length ? 'Ir para' : (base.t === 'live' ? 'Canais parecidos' : 'Parecidos') + ' · ' + g.name;
-    fm.on = true; fm.row = fm.a.length ? 0 : 1; fm.i = [0, 0];
+    var parecidos = g ? g.items.filter(function (x) { return x !== base && okItem(x); }).slice(0, 24) : [];
+    fm.rows = [{ title: 'Vistos por último', items: fmRecent(cur) },
+      { title: (base && base.t === 'live' ? 'Canais parecidos' : 'Parecidos') + (g ? ' · ' + g.name : ''), items: parecidos, list: g ? g.items : [] }]
+      .filter(function (r) { return r.items.length; })
+      .concat({ title: 'Ir para', nav: true, items: FM_NAV });
+    fm.on = true; fm.row = 0; fm.i = fm.rows.map(function () { return 0; });
     lb.on = vb.on = false;
     $('player').classList.remove('show');
     renderFm();
   }
   function fmClose() { fm.on = false; $('fm').classList.add('hidden'); }
+  function fmCard(x, sel) {
+    var nn = x.t === 'live' && nowNext(x), p = nn && nn.now, h = x.t !== 'live' && histFor(x.id);
+    var sub = p ? p.t : x.t === 'ep' ? 'T' + x.s + ' · E' + x.e + (resumable(h) ? ' · parou em ' + fmtTime(h.pos) : '') : resumable(h) ? 'Parou em ' + fmtTime(h.pos) : '';
+    return '<div class="fc' + (sel ? ' sel' : '') + '">' + (x.l || (x.series && x.series.l) ? '<img src="' + esc(x.l || x.series.l) + '" alt=""/>' : '<span>' + esc((x.series ? x.series.n : x.n).charAt(0)) + '</span>') +
+      '<b>' + esc(x.t === 'ep' ? x.series.n : x.n) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>';
+  }
+  // só uma fileira de cards aparece por inteiro (a escolhida; nos atalhos, a de cima deles); as outras viram só o
+  // título, para o vídeo continuar à mostra
   function renderFm() {
-    var n = 6, s = Math.max(0, Math.min(fm.i[0] - 2, fm.a.length - n));
-    $('fmA').innerHTML = fm.a.slice(s, s + n).map(function (x, j) {
-      var nn = x.t === 'live' && nowNext(x), p = nn && nn.now;
-      return '<div class="fc' + (!fm.row && s + j === fm.i[0] ? ' sel' : '') + '">' + (x.l ? '<img src="' + esc(x.l) + '" alt=""/>' : '<span>' + esc(x.n.charAt(0)) + '</span>') +
-        '<b>' + esc(x.n) + '</b>' + (p ? '<small>' + esc(p.t) + '</small>' : '') + '</div>';
-    }).join('');
-    $('fmA').classList.toggle('hidden', !fm.a.length);
-    $('fmB').innerHTML = FM_NAV.map(function (v, j) {
-      return '<div class="fn' + (fm.row && j === fm.i[1] ? ' sel' : '') + '">' + icon(v[0]) + '<b>' + v[1] + '</b></div>';
-    }).join('');
+    $('fm').innerHTML = fm.rows.map(function (r, ri) {
+      var on = ri === fm.row, i = fm.i[ri];
+      if (r.nav) return '<h4>' + r.title + '</h4><div class="fm-row">' + r.items.map(function (v, j) {
+        return '<div class="fn' + (on && j === i ? ' sel' : '') + '">' + icon(v[0]) + '<b>' + v[1] + '</b></div>';
+      }).join('') + '</div>';
+      var navOn = fm.rows[fm.row].nav;
+      if (!(on || (navOn && ri === fm.row - 1))) return '<h4 class="fm-mini">' + esc(r.title) + '</h4>';
+      var n = 6, s = Math.max(0, Math.min(i - 2, r.items.length - n));
+      return '<h4>' + esc(r.title) + '</h4><div class="fm-row">' + r.items.slice(s, s + n).map(function (x, j) { return fmCard(x, on && s + j === i); }).join('') + '</div>';
+    }).join('') + '<div class="zk">◀ ▶ escolher &nbsp;·&nbsp; ▲▼ fileira &nbsp;·&nbsp; <i class="k ok">OK</i> abrir &nbsp;·&nbsp; <i class="k ok">Voltar</i> fecha</div>';
     $('fm').classList.remove('hidden');
   }
   function fmKey(k) {
     if (fm.on) {
       if (!Player.active) { fmClose(); return false; }
-      var len = fm.row ? FM_NAV.length : fm.a.length;
-      if (k === K.LEFT || k === K.RIGHT) fm.i[fm.row] = Math.max(0, Math.min(len - 1, fm.i[fm.row] + (k === K.LEFT ? -1 : 1)));
-      else if (k === K.UP || k === K.DOWN) { if (fm.a.length) fm.row = k === K.DOWN ? 1 : 0; }
+      var r = fm.rows[fm.row];
+      if (k === K.LEFT || k === K.RIGHT) fm.i[fm.row] = Math.max(0, Math.min(r.items.length - 1, fm.i[fm.row] + (k === K.LEFT ? -1 : 1)));
+      else if (k === K.UP || k === K.DOWN) fm.row = Math.max(0, Math.min(fm.rows.length - 1, fm.row + (k === K.UP ? -1 : 1)));
       else if (k === K.ENTER) {
+        var x = r.items[fm.i[fm.row]];
         fmClose();
-        if (fm.row) {
-          var v = FM_NAV[fm.i[1]][0];
+        if (r.nav) {
           Player.close();
-          if (v === 'search') openSearch('home'); else go(v);
-        } else {
-          var x = fm.a[fm.i[0]];
-          if (x.t === 'live') playLive(x, fm.list);
-          else { Player.close(); go('detail', x, true); }
-        }
+          if (x[0] === 'search') openSearch('home'); else go(x[0]);
+        } else if (x.t === 'live') playLive(x, r.list || recentLive());
+        else if (r.list) { Player.close(); go('detail', x, true); } // parecido: a ficha do filme ou da série
+        else { var h = histFor(x.id); playVod(x, resumable(h) ? h.pos : 0); } // visto por último: continua de onde parou
         return true;
       }
       else if (k === K.BACK || k === K.ESC || k === K.BACKSPACE) { fmClose(); return true; }
