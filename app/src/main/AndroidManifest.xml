@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- versão nova do APK mandada pelo portal (o Android pede confirmação na tela) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Android TV (controle remoto, sem tela de toque); também abre em celular e tablet -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />

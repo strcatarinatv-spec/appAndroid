@@ -2,7 +2,16 @@ package br.com.catarinatv.tv
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageInstaller
 import android.graphics.Color
+import android.net.Uri
+import android.provider.Settings
+import android.widget.Toast
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -71,85 +80,165 @@ class MainActivity : Activity() {
             settings.allowUniversalAccessFromFileURLs = true
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             settings.textZoom = 100 // a fonte grande da acessibilidade da TV não estoura o layout de 1920×1080
+            // a página tem 1920 de largura (meta viewport, posta no build): o WebView encaixa ela na tela inteira
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = true
+            settings.setSupportZoom(false)
             addJavascriptInterface(Ponte(), "AndroidAv")
-            addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> evaluateJavascript("window.__zoom&&__zoom()", null) }
-            webViewClient = object : WebViewClient() {
-                override fun onPageFinished(v: WebView, url: String) = v.evaluateJavascript("window.__zoom&&__zoom()", null)
-            }
+            webViewClient = WebViewClient()
         }
         tela.addView(web, FrameLayout.LayoutParams(-1, -1))
         setContentView(tela)
         web.loadUrl(inicio())
         ui.post(relogio)
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(instalou, IntentFilter(INSTALOU), Context.RECEIVER_NOT_EXPORTED)
+        else registerReceiver(instalou, IntentFilter(INSTALOU))
         buscarVersao()
     }
 
     /* ---------- Versão nova sem reinstalar ----------
-     * A cada envio ao GitHub, o Releases ganha o www.zip (o app: telas, menus, correções). O app confere ao abrir e a cada
-     * 6 h; se mudou, baixa em segundo plano para files/ota e pergunta se atualiza agora (senão vale na próxima abertura).
-     * Mudança na parte Android (player, teclas) ainda pede o APK novo. */
+     * A cada envio ao GitHub, o Releases ganha o www.zip (o app: telas, menus, correções) e o APK. O app confere ao abrir
+     * e a cada 6 h; se mudou, baixa em segundo plano e pergunta se atualiza agora (senão vale na próxima abertura).
+     * O portal também pode mandar atualizar (Atualizar → App), com o link escolhido lá: aí atualiza sem perguntar.
+     * Link: www.zip, .apk ou a página do Releases do GitHub (tag com versão maior que a do APK instalado = APK novo). */
+    private val PADRAO = "https://github.com/strcatarinatv-spec/appAndroid/releases/latest"
     private val prefs by lazy { getSharedPreferences("ota", MODE_PRIVATE) }
     private val ota by lazy { File(filesDir, "ota") }
-    private val apk by lazy { packageManager.getPackageInfo(packageName, 0).lastUpdateTime } // muda a cada APK instalado
+    private val pacote by lazy { packageManager.getPackageInfo(packageName, 0) }
+    private val apk by lazy { pacote.lastUpdateTime } // muda a cada APK instalado
     private var buscouEm = 0L
-    private var aviso = false // baixou e falta perguntar
+    private var aviso = false // baixou e falta aplicar
+    private var forcado = false // pedido do portal: aplica sem perguntar
+    private var apkNovo: File? = null // APK baixado esperando a permissão de instalar
 
     // a versão baixada, se for deste APK (um APK novo traz a dele e descarta a antiga)
     private fun inicio() =
         if (prefs.getLong("apk", 0) == apk && File(ota, "www/index.html").exists()) "file://${ota.absolutePath}/www/index.html"
         else "file:///android_asset/www/index.html"
 
-    private fun buscarVersao() {
-        if (System.currentTimeMillis() - buscouEm < 6 * 3600_000) return
-        buscouEm = System.currentTimeMillis()
+    private fun abrir(url: String) = (URL(url).openConnection() as HttpURLConnection).apply {
+        connectTimeout = 15000; readTimeout = 30000
+        setRequestProperty("Accept", "application/vnd.github+json, */*")
+    }.inputStream
+
+    private fun maior(a: String, b: String): Boolean {
+        val x = a.split(".").map { it.toIntOrNull() ?: 0 }; val y = b.split(".").map { it.toIntOrNull() ?: 0 }
+        for (i in 0 until maxOf(x.size, y.size)) if (x.getOrElse(i) { 0 } != y.getOrElse(i) { 0 }) return x.getOrElse(i) { 0 } > y.getOrElse(i) { 0 }
+        return false
+    }
+
+    // o que baixar: (tipo "www" ou "apk", endereço, identidade para saber se já está instalado)
+    private fun resolver(link: String): Triple<String, String, String>? {
+        if (!link.startsWith("https://")) return null
+        val caminho = URL(link).path.lowercase()
+        if (caminho.endsWith(".apk")) return Triple("apk", link, link)
+        if (caminho.endsWith(".zip")) return Triple("www", link, link)
+        val m = Regex("""^https://github\.com/([^/]+)/([^/]+)/releases(?:/tag/([^/?#]+))?""").find(link) ?: return null
+        val (dono, repo, tag) = m.destructured
+        val rel = JSONObject(abrir("https://api.github.com/repos/$dono/$repo/releases/" + (if (tag.isEmpty()) "latest" else "tags/$tag")).bufferedReader().readText())
+        val arqs = rel.getJSONArray("assets").let { a -> (0 until a.length()).map { a.getJSONObject(it) } }
+        val apkDela = if (maior(rel.optString("tag_name").trimStart('v'), pacote.versionName ?: "0")) arqs.firstOrNull { it.getString("name").endsWith(".apk") } else null
+        val a = apkDela ?: arqs.firstOrNull { it.getString("name") == "www.zip" } ?: return null
+        return Triple(if (a === apkDela) "apk" else "www", a.getString("browser_download_url"), a.getLong("id").toString())
+    }
+
+    // resposta ao app (só quando o portal pediu): igual, nova, apk ou erro
+    private fun fim(porPortal: Boolean, s: String, msg: String = "") {
+        if (porPortal) ui.post { web.evaluateJavascript("window.__versao&&__versao('$s',${JSONObject.quote(msg)})", null) }
+    }
+
+    private fun buscarVersao(link: String = PADRAO, porPortal: Boolean = false) {
+        if (!porPortal) {
+            if (System.currentTimeMillis() - buscouEm < 6 * 3600_000) return
+            buscouEm = System.currentTimeMillis()
+        }
         thread {
             try {
-                val c = URL("https://api.github.com/repos/strcatarinatv-spec/appAndroid/releases/latest").openConnection() as HttpURLConnection
-                c.connectTimeout = 15000; c.readTimeout = 15000
-                c.setRequestProperty("Accept", "application/vnd.github+json")
-                val assets = JSONObject(c.inputStream.bufferedReader().readText()).getJSONArray("assets")
-                val z = (0 until assets.length()).map { assets.getJSONObject(it) }.firstOrNull { it.getString("name") == "www.zip" } ?: return@thread
-                val id = z.getLong("id")
-                if (prefs.getLong("apk", 0) != apk) { // APK recém-instalado: já veio com o app desta versão
-                    ota.deleteRecursively()
-                    prefs.edit().putLong("id", id).putLong("apk", apk).apply()
+                val (tipo, url, id) = resolver(link) ?: return@thread fim(porPortal, "erro", "link não reconhecido (use https: www.zip, .apk ou o Releases do GitHub)")
+                if (tipo == "apk") {
+                    val f = File(cacheDir, "novo.apk")
+                    abrir(url).use { i -> f.outputStream().use { i.copyTo(it) } }
+                    fim(porPortal, "apk")
+                    ui.post { if (porPortal) instalar(f) else oferecerApk(f) }
                     return@thread
                 }
-                if (id == prefs.getLong("id", 0)) return@thread
+                if (!porPortal && prefs.getLong("apk", 0) != apk) { // APK recém-instalado: já veio com o app desta versão
+                    ota.deleteRecursively()
+                    prefs.edit().putString("fonte", id).putLong("apk", apk).apply()
+                    return@thread
+                }
+                if (id == prefs.getString("fonte", "") && prefs.getLong("apk", 0) == apk) return@thread fim(porPortal, "igual")
                 val novo = File(filesDir, "ota-novo").apply { deleteRecursively(); mkdirs() }
                 val base = novo.canonicalPath + File.separator
-                ZipInputStream(URL(z.getString("browser_download_url")).openStream()).use { zip ->
+                ZipInputStream(abrir(url)).use { zip ->
                     generateSequence { zip.nextEntry }.forEach { e ->
                         val f = File(novo, e.name)
                         if (!f.canonicalPath.startsWith(base)) throw SecurityException(e.name) // nada fora da pasta
                         if (e.isDirectory) f.mkdirs() else { f.parentFile?.mkdirs(); f.outputStream().use { zip.copyTo(it) } }
                     }
                 }
-                if (!File(novo, "www/index.html").exists()) return@thread
+                if (!File(novo, "www/index.html").exists()) return@thread fim(porPortal, "erro", "o arquivo não tem o app (www/index.html)")
                 ui.post {
                     ota.deleteRecursively()
-                    if (!novo.renameTo(ota)) return@post
-                    prefs.edit().putLong("id", id).putLong("apk", apk).apply()
+                    if (!novo.renameTo(ota)) return@post fim(porPortal, "erro", "sem espaço para gravar")
+                    prefs.edit().putString("fonte", id).putLong("apk", apk).apply()
+                    fim(porPortal, "nova")
                     aviso = true
+                    forcado = forcado || porPortal
                     perguntar()
                 }
-            } catch (_: Exception) { } // sem internet ou GitHub fora: confere de novo mais tarde
+            } catch (e: Exception) { fim(porPortal, "erro", "não foi possível baixar (${e.javaClass.simpleName})") } // tenta de novo mais tarde
         }
     }
 
-    // não interrompe o que está passando: com vídeo tocando, pergunta quando voltar ao app
+    // não interrompe o que está passando: com vídeo tocando, espera ele parar (o relógio confere)
     private fun perguntar() {
         if (!aviso || isFinishing || players.values.any { it.exo?.isPlaying == true }) return
         aviso = false
+        val aplicar = { players.values.forEach { it.fechar() }; web.loadUrl(inicio()) }
+        if (forcado) { forcado = false; ui.postDelayed({ aplicar() }, 2500); return } // dá tempo de avisar o portal
         AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
             .setTitle("Nova versão do app")
             .setMessage("Já está baixada. Atualizar agora?")
-            .setPositiveButton("Atualizar") { _, _ ->
-                players.values.forEach { it.fechar() }
-                web.loadUrl(inicio())
-            }
+            .setPositiveButton("Atualizar") { _, _ -> aplicar() }
             .setNegativeButton("Depois", null) // abre com ela na próxima vez
             .show()
+    }
+
+    private fun oferecerApk(f: File) {
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Nova versão do app")
+            .setMessage("Já está baixada. Instalar agora?")
+            .setPositiveButton("Instalar") { _, _ -> instalar(f) }
+            .setNegativeButton("Depois", null)
+            .show()
+    }
+
+    // APK novo: o Android pede para confirmar na tela (e, na primeira vez, permitir que a Catarina TV instale apps)
+    private val INSTALOU = "br.com.catarinatv.tv.INSTALOU"
+    private fun instalar(f: File) {
+        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            apkNovo = f // volta ao app com a permissão dada: instala (onStart)
+            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            return
+        }
+        apkNovo = null
+        try {
+            val pi = packageManager.packageInstaller
+            val id = pi.createSession(PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL))
+            pi.openSession(id).use { s ->
+                f.inputStream().use { i -> s.openWrite("app", 0, f.length()).use { o -> i.copyTo(o); s.fsync(o) } }
+                val it = Intent(INSTALOU).setPackage(packageName)
+                s.commit(PendingIntent.getBroadcast(this, id, it, PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)).intentSender)
+            }
+        } catch (e: Exception) { Toast.makeText(this, "Não foi possível instalar: ${e.javaClass.simpleName}", Toast.LENGTH_LONG).show() }
+    }
+    private val instalou = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, i: Intent) {
+            @Suppress("DEPRECATION")
+            if (i.getIntExtra(PackageInstaller.EXTRA_STATUS, -1) == PackageInstaller.STATUS_PENDING_USER_ACTION)
+                i.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)?.let { startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        }
     }
 
     override fun dispatchKeyEvent(e: KeyEvent): Boolean {
@@ -171,9 +260,11 @@ class MainActivity : Activity() {
         pausados.clear()
         buscarVersao()
         perguntar()
+        apkNovo?.let { if (Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()) instalar(it) }
     }
     override fun onDestroy() {
         ui.removeCallbacksAndMessages(null)
+        unregisterReceiver(instalou)
         players.values.forEach { it.fechar() }
         web.destroy()
         super.onDestroy()
@@ -189,6 +280,7 @@ class MainActivity : Activity() {
     private val relogio = object : Runnable {
         override fun run() {
             players.values.forEach { a -> a.exo?.let { if (it.isPlaying) evento(a.id, "oncurrentplaytime", it.currentPosition) } }
+            if (aviso) perguntar() // versão nova esperando o vídeo parar
             ui.postDelayed(this, 500)
         }
     }
@@ -316,7 +408,9 @@ class MainActivity : Activity() {
         @JavascriptInterface fun duration(id: Int): Long = players[id]?.duracao ?: 0
         @JavascriptInterface fun tracks(id: Int): String = players[id]?.faixas ?: "[]"
         @JavascriptInterface fun current(id: Int): String = players[id]?.atuais ?: "[]"
-        @JavascriptInterface fun model(): String = "${Build.MANUFACTURER} ${Build.MODEL}"
+        @JavascriptInterface fun model(): String = "Android · ${Build.MANUFACTURER} ${Build.MODEL}"
         @JavascriptInterface fun exit() = naTela { finish() }
+        @JavascriptInterface fun versao(): String = pacote.versionName ?: ""
+        @JavascriptInterface fun atualizar(link: String) = naTela { buscarVersao(link.trim().ifEmpty { PADRAO }, true) }
     }
 }

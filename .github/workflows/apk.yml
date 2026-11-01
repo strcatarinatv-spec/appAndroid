@@ -18,6 +18,9 @@ jobs:
       - name: Gerar
         env: { KEYSTORE_B64: '${{ secrets.KEYSTORE_B64 }}', KEYSTORE_PASS: '${{ secrets.KEYSTORE_PASS }}' }
         run: |
+          # versão exata no portal: 1.9.0 vira 1.9.0.<nº deste build> (o www.zip e o APK levam a mesma)
+          sed -i -E "s/var VERSION = '([0-9.]+)'/var VERSION = '\1.${GITHUB_RUN_NUMBER}'/" www/js/app.js
+          grep -q "VERSION = '[0-9.]*\.${GITHUB_RUN_NUMBER}'" www/js/app.js
           if [ -n "$KEYSTORE_B64" ]; then echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/c.jks"; export KEYSTORE_FILE="$RUNNER_TEMP/c.jks"; fi
           gradle assembleRelease --console=plain
       - name: Publicar

@@ -51,7 +51,13 @@ dependencies {
 // o app vai para assets/www a cada build; no lugar do webapis.js da TV, o do Android (assets/webapis-android.js)
 val copiarApp by tasks.registering(Copy::class) {
     from(web) { exclude("config.xml") }
-    filesMatching("index.html") { filter { it.replace("\$WEBAPIS/webapis/webapis.js", "../webapis-android.js") } }
+    // e a página declara 1920 de largura: o WebView encaixa na tela (useWideViewPort + loadWithOverviewMode)
+    filesMatching("index.html") {
+        filter {
+            it.replace("\$WEBAPIS/webapis/webapis.js", "../webapis-android.js")
+                .replace("<meta charset=\"utf-8\"/>", "<meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=1920, user-scalable=no\"/>")
+        }
+    }
     into(layout.buildDirectory.dir("app-web/www"))
 }
 tasks.named("preBuild") { dependsOn(copiarApp) }

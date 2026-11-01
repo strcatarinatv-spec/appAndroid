@@ -3310,7 +3310,8 @@ var App = (function () {
         refresh: +doc.refresh || 0, // hora do último "Atualizar tudo" pedido no portal
         // e de cada parte pedida sozinha
         parte: doc.refreshParte && typeof doc.refreshParte === 'object'
-          ? { canais: +doc.refreshParte.canais || 0, guia: +doc.refreshParte.guia || 0, tmdb: +doc.refreshParte.tmdb || 0 } : {},
+          ? { canais: +doc.refreshParte.canais || 0, guia: +doc.refreshParte.guia || 0, tmdb: +doc.refreshParte.tmdb || 0, app: +doc.refreshParte.app || 0 } : {},
+        appLink: typeof doc.appLink === 'string' ? doc.appLink.trim() : '', // de onde baixar a versão nova (TV Android)
         // grupos criados no portal: { nome, de: [grupos da lista] }
         grupos: (doc.grupos || []).filter(function (g) { return g && typeof g.nome === 'string' && g.de && g.de.length; })
           .map(function (g) { return { nome: g.nome.slice(0, 40), de: g.de.map(String) }; }),
@@ -3360,8 +3361,24 @@ var App = (function () {
   // vez (pedido no meio entra na fila), com o % no canto da tela e no portal (tvs/{uid}.prog: a barra no cartão da TV)
   var UPD = {
     tudo: ['tudo', '✓ Tudo atualizado'], canais: ['a lista de canais', '✓ Lista de canais atualizada'],
-    guia: ['o guia de programação', '✓ Guia de programação atualizado'], tmdb: ['capas e sinopses', '✓ Capas e sinopses atualizadas']
+    guia: ['o guia de programação', '✓ Guia de programação atualizado'], tmdb: ['capas e sinopses', '✓ Capas e sinopses atualizadas'],
+    app: ['o app', '✓ App atualizado']
   };
+
+  // "Atualizar → App" no portal: a TV Android baixa a versão nova do link escolhido lá e se atualiza sozinha
+  // (o Android responde por __versao: igual, nova, apk ou erro). A Samsung atualiza pelo pacote, não por aqui
+  function updApp() {
+    var A = window.AndroidAv;
+    if (!A || !A.atualizar) return progress('app', 0, true, A ? 'instale o APK novo uma vez: este ainda não atualiza pelo portal' : 'na Samsung o app é atualizado pelo pacote novo');
+    progress('app', 10);
+    window.__versao = function (s, msg) {
+      if (s === 'erro') return progress('app', 0, true, msg || 'não foi possível baixar');
+      progress('app', 100, true);
+      if (s === 'igual') corner('✓ O app já está na versão mais nova');
+      if (s === 'apk') corner('⟳ Confirme a instalação na tela', false, true);
+    };
+    A.atualizar(remote.appLink || '');
+  }
   var updating = '', updQueue = [], progLast = { p: -1, at: 0 };
   function progress(o, p, end, err) {
     p = end && !err ? 100 : Math.max(0, Math.min(99, Math.floor(p)));
@@ -3445,11 +3462,11 @@ var App = (function () {
       // pedidos do portal: tudo (refresh) ou uma parte (refreshParte.canais / guia / tmdb). A TV não grava esses
       // campos: compara com o último pedido que já atendeu
       if (remote.refresh > refreshSeen()) { store('ctv.refreshAt', remote.refresh); listStale = tmdbStale = true; }
-      ['canais', 'guia', 'tmdb'].forEach(function (k) {
+      ['canais', 'guia', 'tmdb', 'app'].forEach(function (k) {
         var at = (remote.parte || {})[k] || 0;
         if (at <= (+localStorage.getItem('ctv.refresh.' + k) || 0)) return;
         store('ctv.refresh.' + k, at);
-        if (k === 'canais') listStale = true; else runUpdate(k);
+        if (k === 'canais') listStale = true; else if (k === 'app') updApp(); else runUpdate(k);
       });
       // lista nova, dia novo ou pedido do portal: baixa por trás, sem mexer na tela (com vídeo aberto, espera ele
       // fechar); o que mudou aparece ao navegar, e no canto fica o %
