@@ -2686,10 +2686,35 @@ var App = (function () {
 
   /* ---------- Ajustes ---------- */
 
+  // chave do QR de ativação: guardada na TV e no documento dela (tvs/{uid}.ativa, que só ela e o portal leem)
+  var ativaSent = '';
+  function ativaKey() {
+    var k = localStorage.getItem('ctv.ativa') || '';
+    if (!/^[0-9a-f]{32}$/.test(k)) {
+      k = '';
+      var r = window.crypto && crypto.getRandomValues ? crypto.getRandomValues(new Uint8Array(16)) : null;
+      for (var i = 0; i < 16; i++) k += ('0' + ((r ? r[i] : Math.floor(Math.random() * 256)) & 255).toString(16)).slice(-2);
+      store('ctv.ativa', k);
+    }
+    if (ativaSent !== k) { ativaSent = k; Fire.set('tvs/' + Fire.uid, { ativa: k }).then(null, function () { ativaSent = ''; }); }
+    return k;
+  }
+
   render.settings = function (arg) {
     if (arg === 'hide') return settingsHide();
     if (arg && arg.edit) return settingsGroup(arg);
     var html = ''; // a lista não aparece aqui: vem sozinha do portal (OK 8× no logo força a atualização)
+    // TV sem cliente: o QR abre no celular a página de ativação; com o usuário e a senha da assinatura, a TV fica do
+    // cliente e recebe a lista na hora (functions → ativarTv). Primeiro dos Ajustes, para ser a primeira coisa vista
+    var ak = !remote.cliente && Fire.enabled && Fire.uid && ativaKey();
+    if (ak) {
+      html += '<div class="row"><h3>Ativar esta TV</h3><div class="support">' + QR.svg('https://catarinatv-9f7a3.firebaseapp.com/ativar/#k=' + ak, 260) +
+        '<p>Aponte a câmera do celular para o código e digite o <b>usuário e a senha</b> da sua assinatura. ' +
+        'A TV fica ligada à sua conta e os canais aparecem em instantes.</p></div>' +
+        '<div class="track" data-group="at">' + btn('ativanovo', '↻&nbsp; Gerar novo código') + '</div></div>';
+    } else if (remote.cliente) {
+      try { localStorage.removeItem('ctv.ativa'); } catch (e) {}
+    }
     // o celular vira controle: o QR abre a página do controle já pareada com esta TV (primeiro dos Ajustes)
     if (Controle.key) {
       html += '<div class="row"><h3>Controle pelo celular</h3><div class="support">' + QR.svg(Controle.link(), 260) +
@@ -2771,6 +2796,11 @@ var App = (function () {
     else if (act === 'pick') pickSource(el);
     else if (act === 'grpsave') saveGroup();
     else if (act === 'grpdel') deleteGroup();
+    else if (act === 'ativanovo') {
+      try { localStorage.removeItem('ctv.ativa'); } catch (e) {}
+      ativaSent = '';
+      refreshView();
+    }
     else if (act === 'rcnew') {
       // o foco abre os Ajustes neste botão (para o QR aparecer inteiro): um OK sem querer só pede confirmação
       if (!el._armed) {
