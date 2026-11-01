@@ -57,7 +57,7 @@
     avplay: principal,
     avplaystore: { getPlayer: player },
     productinfo: { getRealModel: function () { return A.model(); } },
-    network: { getMac: function () { return ''; } }
+    network: { getMac: function () { return A.mac ? A.mac() : ''; } } // "MAC" fixo do aparelho (MainActivity.mac)
   };
   window.tizen = {
     tvinputdevice: { registerKey: function () {} },

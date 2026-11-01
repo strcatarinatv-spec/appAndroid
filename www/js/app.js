@@ -1595,12 +1595,63 @@ var App = (function () {
       if (live.gi >= live.groups.length) live.gi = 1;
       return live.groups;
     }
-    live.groups = [{ name: '◷  Vistos por último', items: recentLive() }, { name: '★  Favoritos', items: favItems().live },
+    live.groups = videoGroups();
+    if (live.gi >= live.groups.length) live.gi = ALL;
+    return live.groups;
+  }
+  function videoGroups() {
+    return [{ name: '◷  Vistos por último', items: recentLive() }, { name: '★  Favoritos', items: favItems().live },
       { name: 'Todos os canais', items: app.visibleLive || app.cat.live }].concat(app.groups.live,
       // sem a senha, os grupos +18 aparecem só com o cadeado (OK pede a senha)
       adultOk ? [] : lockedGroups.live.map(function (g) { return { name: '🔒  ' + g.name, items: [], locked: true }; }));
-    if (live.gi >= live.groups.length) live.gi = ALL;
-    return live.groups;
+  }
+
+  /* ---------- Lista de canais por cima do vídeo ---------- */
+
+  // ◀ com o canal aberto: a lista aparece à esquerda, em vidro, e o vídeo continua. ▲▼ canais, ◀ ▶ grupos, OK assiste,
+  // Voltar fecha a lista (outro Voltar sai do vídeo, para o menu)
+  var zp = { on: false, groups: null, gi: ALL, ci: 0 }, ZP_ROWS = 9;
+  function zapOpen() {
+    var ch = app.idx[Player.liveId];
+    zp.groups = videoGroups();
+    zp.gi = ALL;
+    zp.groups.forEach(function (g, i) { if (g.items === zapList && g.items.indexOf(ch) >= 0) zp.gi = i; });
+    zp.ci = Math.max(0, zp.groups[zp.gi].items.indexOf(ch));
+    zp.on = true;
+    lb.on = false;
+    $('player').classList.remove('show');
+    renderZap();
+  }
+  function zapClose() { zp.on = false; $('zap').classList.add('hidden'); }
+  function renderZap() {
+    var g = zp.groups[zp.gi], items = g.items, s = Math.max(0, Math.min(zp.ci - Math.floor(ZP_ROWS / 2), items.length - ZP_ROWS)), html = '';
+    for (var i = s; i < Math.min(items.length, s + ZP_ROWS); i++) {
+      var c = items[i], nn = nowNext(c), p = nn && nn.now;
+      html += '<div class="zr' + (i === zp.ci ? ' sel' : '') + (c.id === Player.liveId ? ' tocando' : '') + '"><span class="zn">' + c.num + '</span>' +
+        (c.l ? '<img src="' + esc(c.l) + '" alt=""/>' : '<span class="zi">' + esc(c.n.charAt(0)) + '</span>') +
+        '<div><b>' + esc(c.n) + '</b>' + (p ? '<small>' + esc(p.t) + '</small>' : '') + '</div></div>';
+    }
+    $('zapG').textContent = g.name + ' · ' + items.length;
+    $('zapL').innerHTML = html || '<p class="zv">' + (g.locked ? 'Grupo com senha: abra pelo Ao vivo' : 'Nenhum canal neste grupo') + '</p>';
+    $('zap').classList.remove('hidden');
+  }
+  function zapKey(k) {
+    if (!zp.on) {
+      if (Player.active && Player.liveId && !lb.on && !mn && !qm.ch && k === K.LEFT) { zapOpen(); return true; }
+      return false;
+    }
+    if (!Player.active) { zapClose(); return false; }
+    var items = zp.groups[zp.gi].items;
+    if (k === K.UP || k === K.DOWN) { if (items.length) zp.ci = (zp.ci + (k === K.UP ? -1 : 1) + items.length) % items.length; renderZap(); }
+    else if (k === K.LEFT || k === K.RIGHT) { zp.gi = (zp.gi + (k === K.LEFT ? -1 : 1) + zp.groups.length) % zp.groups.length; zp.ci = 0; renderZap(); }
+    else if (k === K.ENTER) {
+      var c = items[zp.ci];
+      zapClose();
+      if (c && c.id !== Player.liveId) playLive(c, items);
+    }
+    else if (k === K.BACK || k === K.ESC || k === K.BACKSPACE) zapClose();
+    else return false; // números, cores: seguem para o player
+    return true;
   }
 
   // qualidade em uso e, se o canal tem outras, "+N" (tecla amarela troca)
@@ -2401,8 +2452,15 @@ var App = (function () {
       '<em>' + (!previewOn() ? 'Aperte OK para assistir' : mine && pv.err ? 'Sem prévia deste canal' : 'Sintonizando…') + '</em></div>';
   }
 
-  // assinatura de 1 tela: sem prévia (cada canal em foco abriria uma conexão, e o fornecedor recusa o canal de verdade)
-  function previewOn() { return !(app.cat && app.cat.telas === 1); }
+  // assinatura de 1 tela: sem prévia nem tela dupla (cada canal em foco abriria uma conexão, e o fornecedor recusa o de verdade)
+  function duoOk() { return !(app.cat && app.cat.telas === 1); }
+  // prévia: só com internet medida que aguenta com folga (abrir um canal a cada foco travava as mais fracas); sem medida, mede
+  var PV_MBPS = 15;
+  function previewOn() {
+    if (!duoOk()) return false;
+    if (!band.at) { measureBand(); return false; }
+    return band.mbps >= PV_MBPS;
+  }
 
   // não tocou: pergunta ao fornecedor (API Xtream) se a assinatura está ativa e se as telas dela estão todas em uso.
   // Só diz o motivo quando ele é confirmado; senão fica a mensagem do player
@@ -2426,7 +2484,7 @@ var App = (function () {
     clearTimeout(pv.timer);
     if (!ch || !previewOn()) return stopPreview();
     if (pv.ch === ch) return;
-    pv.timer = setTimeout(function () { startPreview(ch); }, 800); // só depois de parar de navegar
+    pv.timer = setTimeout(function () { startPreview(ch); }, 1500); // só depois de parar de navegar (rolando a lista, não abre nada)
   }
 
   function rectOf(el) {
@@ -2821,6 +2879,7 @@ var App = (function () {
 
   function leavePlayer() {
     lb.on = false;
+    zapClose();
     $('shell').classList.remove('hidden');
     Player.liveId = null;
     if (app.view === 'detail') {
@@ -2838,6 +2897,16 @@ var App = (function () {
   function playVod(item, start) {
     if (!okItem(item)) return askPin(function () { playVod(item, start); }); // +18: senha antes
     var isEp = item.t === 'ep';
+    var next = isEp ? function (d) {
+      var eps = item.series.eps, nx = eps[eps.indexOf(item) + d];
+      if (!nx) return toast(d > 0 ? 'Este é o último episódio' : 'Este é o primeiro episódio');
+      toast((d > 0 ? 'Próximo: ' : 'Anterior: ') + 'T' + nx.s + ' · E' + nx.e);
+      var h = histFor(nx.id);
+      playVod(nx, resumable(h) ? h.pos : 0);
+    } : null;
+    vb = { on: false, i: 0, item: item, next: next,
+      keys: semCores() ? '▼ opções: áudio e legendas' + (isEp ? ', episódios e próximo' : '')
+        : (isEp ? 'CH▲▼ episódio &nbsp;·&nbsp; <i class="k green"></i> episódios &nbsp;·&nbsp; ' : '') + '<i class="k yellow"></i> áudio e legendas &nbsp;·&nbsp; ▼ opções' };
     Player.open({
       url: item.u, why: whyFail,
       title: isEp ? item.series.n : item.n,
@@ -2857,30 +2926,61 @@ var App = (function () {
       ontracks: openTracks,
       // série: 🟢 lista de episódios e CH▲▼ próximo/anterior, sem sair do vídeo
       oneps: isEp ? function () { openEpisodes(item); } : null,
-      onnext: isEp ? function (d) {
-        var eps = item.series.eps, nx = eps[eps.indexOf(item) + d];
-        if (!nx) return toast(d > 0 ? 'Este é o último episódio' : 'Este é o primeiro episódio');
-        toast((d > 0 ? 'Próximo: ' : 'Anterior: ') + 'T' + nx.s + ' · E' + nx.e);
-        var h = histFor(nx.id);
-        playVod(nx, resumable(h) ? h.pos : 0);
-      } : null,
-      keys: (isEp ? 'CH▲▼ episódio &nbsp;·&nbsp; <i class="k green"></i> episódios &nbsp;·&nbsp; ' : '') + '<i class="k yellow"></i> áudio e legendas',
+      onnext: next,
+      keys: vb.keys,
       onclose: leavePlayer
     });
     enterPlayer();
   }
 
+  // Barra de opções do filme/episódio (para controles sem teclas coloridas, como o do Chromecast): ▼ abre;
+  // ◀ ▶ andam, OK usa, ▲ ou Voltar fecham. Com ela fechada, ◀ ▶ continuam voltando e avançando o vídeo
+  var vb = { on: false, i: 0, item: null, next: null, keys: '' };
+  function vodOpts() {
+    var it = vb.item, o = [{ t: 'Áudio e legendas', fn: openTracks }];
+    if (it.t === 'ep') {
+      o.push({ t: 'Episódios', fn: function () { openEpisodes(it); } });
+      o.push({ t: 'Próximo ▶', fn: function () { vb.next(1); } });
+    }
+    o.push({ t: '♥', fav: true, on: isFav(it), fn: function () { toggleFav(it); } });
+    return o;
+  }
+  function renderVodBar() {
+    var o = vodOpts();
+    $('pVodKeys').innerHTML = vb.on ? '<span class="o-opts">' + o.map(function (x, i) {
+      return '<span class="o-opt' + (x.on ? ' on' : '') + (x.fav ? ' fav' : '') + (i === vb.i ? ' focus' : '') + '">' + esc(x.t) + '</span>';
+    }).join('') + '</span> ◀ ▶ escolher &nbsp;·&nbsp; <i class="k ok">OK</i> usar &nbsp;·&nbsp; ▲ fechar' : vb.keys;
+  }
+  function vodBarKey(k) {
+    if (!Player.active || Player.liveId || !vb.item || mn) return false;
+    if (!vb.on) {
+      if (k !== K.DOWN) return false;
+      vb.on = true; vb.i = 0;
+    } else if (k === K.LEFT || k === K.RIGHT) vb.i = Math.max(0, Math.min(vodOpts().length - 1, vb.i + (k === K.LEFT ? -1 : 1)));
+    else if (k === K.ENTER) { var fn = vodOpts()[vb.i].fn; vb.on = false; renderVodBar(); fn(); return true; }
+    else if (k === K.UP || k === K.BACK || k === K.ESC || k === K.BACKSPACE) vb.on = false;
+    else { vb.on = false; renderVodBar(); return false; }
+    renderVodBar();
+    Player.osd(vb.on);
+    return true;
+  }
+
+  // controle sem as teclas coloridas (Chromecast, Google TV): as funções delas ficam nas barras de opções
+  // (OK no canal ao vivo, ▼ no filme). Basta apertar uma tecla colorida uma vez para o app voltar a mostrá-las
+  function semCores() { return !!window.AndroidAv && !localStorage.getItem('ctv.cores'); }
+
   var zapList = null;
 
-  function playLive(ch, list) {
+  // troca: texto de quando é o mesmo canal em outra qualidade ("Trocando para HD…"): o player tenta com calma, sem "sinal perdido"
+  function playLive(ch, list, troca) {
     if (!okItem(ch)) return askPin(function () { playLive(ch, list); }); // +18: senha antes
     list = list && list.length ? list : [ch];
     zapList = list;
     Player.open({
-      url: ch.u, live: true, title: ch.n, sub: ch.num + '  ·  ' + ch.g + (ch.q ? '  ·  ' + ch.q : ''), logo: ch.l, why: whyFail,
+      url: ch.u, live: true, title: ch.n, sub: ch.num + '  ·  ' + ch.g + (ch.q ? '  ·  ' + ch.q : ''), logo: ch.l, why: whyFail, troca: troca || '',
       osd: function () { return liveOsd(ch); },
       onduo: function () { openDuo(ch, list); },
-      onquality: function () { openQMenu(ch, function () { playLive(ch, list); }); },
+      onquality: function () { openQMenu(ch, function () { playLive(ch, list, 'Trocando para ' + qName(ch, ch.vi) + '…'); }); },
       // travando (ou caiu) na automática: desce uma qualidade e anota a internet mais fraca para os outros canais
       onstall: function () {
         if (!ch.vs || !ch.auto || ch.vi >= ch.vs.length - 1) return false;
@@ -2888,8 +2988,7 @@ var App = (function () {
         band = { mbps: Math.round(qNeed(lower.q) / 0.8 * 10) / 10, at: Date.now() };
         try { localStorage.setItem('ctv.banda', JSON.stringify(band)); } catch (e) {}
         app.cat.live.forEach(pickQ);
-        toast('Internet lenta: mudando para ' + qName(ch, ch.vi));
-        playLive(ch, list);
+        playLive(ch, list, 'Internet lenta: mudando para ' + qName(ch, ch.vi) + '…');
         return true;
       },
       onzap: function (d) {
@@ -2927,11 +3026,18 @@ var App = (function () {
   var lb = { on: false, i: 0 };
   function liveOpts(ch) {
     var o = [];
+    // mesma versão de antes: não abre de novo (cada troca derruba e refaz a conexão com o fornecedor)
+    var trocar = function (i) {
+      var antes = ch.vs[ch.vi].u;
+      setQ(ch, i);
+      if (ch.vs[ch.vi].u !== antes) playLive(ch, zapList, 'Trocando para ' + qName(ch, ch.vi) + '…'); else Player.osd(true);
+    };
     if (ch.vs) {
-      o.push({ t: 'Auto', on: ch.auto, fn: function () { setQ(ch, -1); playLive(ch, zapList); } });
-      ch.vs.forEach(function (v, i) { o.push({ t: qName(ch, i), on: !ch.auto && ch.vi === i, fn: function () { setQ(ch, i); playLive(ch, zapList); } }); });
+      o.push({ t: 'Auto', on: ch.auto, fn: function () { trocar(-1); } });
+      ch.vs.forEach(function (v, i) { o.push({ t: qName(ch, i), on: !ch.auto && ch.vi === i, fn: function () { trocar(i); } }); });
     }
     o.push({ t: '♥', fav: true, on: isFav(ch), fn: function () { toggleFav(ch); } });
+    if (duoOk()) o.push({ t: '◫ Duas telas', fn: function () { lb.on = false; openDuo(ch, zapList); } });
     o.push({ t: icon('settings'), html: true, fn: function () { liveMore(ch); } });
     return o;
   }
@@ -2939,7 +3045,7 @@ var App = (function () {
   function liveMore(ch) {
     var items = [{ t: 'Tela dupla', s: 'Dois canais ao mesmo tempo', fn: function () { openDuo(ch, zapList); } },
                  { t: 'Áudio e legendas', s: 'As faixas que o canal tiver', fn: openTracks }];
-    if (ch.vs) items.push({ t: 'Qualidade em detalhes', s: 'Automática e a velocidade da internet', fn: function () { openQMenu(ch, function () { playLive(ch, zapList); }); } });
+    if (ch.vs) items.push({ t: 'Qualidade em detalhes', s: 'Automática e a velocidade da internet', fn: function () { openQMenu(ch, function () { playLive(ch, zapList, 'Trocando para ' + qName(ch, ch.vi) + '…'); }); } });
     lb.on = false;
     openMenu('Mais opções · ' + ch.n, items);
   }
@@ -2956,8 +3062,7 @@ var App = (function () {
         Player.osd(true);
         return true;
       }
-      if (k === K.LEFT) { Player.close(); return true; } // ◀ volta para a lista de canais (como o Voltar)
-      return false;
+      return false; // ◀ abre a lista de canais por cima do vídeo (zapKey)
     }
     if (k === K.LEFT || k === K.RIGHT) { lb.i = Math.max(0, Math.min(opts.length - 1, lb.i + (k === K.LEFT ? -1 : 1))); Player.osd(true); return true; }
     if (k === K.ENTER) { opts[lb.i].fn(); if (Player.active) Player.osd(lb.on); return true; }
@@ -2982,7 +3087,7 @@ var App = (function () {
   function openDuo(ch, list) {
     list = list && list.length >= DUO_CARDS ? list : app.cat.live; // listas curtas (Continuar, favoritos) dão pouca escolha
     if (list.length < 2) return toast('É preciso ter pelo menos dois canais');
-    if (!previewOn()) return toast('A tela dupla precisa de um plano com 2 telas: esta assinatura permite 1');
+    if (!duoOk()) return toast('A tela dupla precisa de um plano com 2 telas: esta assinatura permite 1');
     Player.close();
     stopPreview();
     duo.on = true;
@@ -3925,7 +4030,9 @@ var App = (function () {
       searchTimer = setTimeout(runSearch, 400);
     });
 
-    Nav.onkey = function (k) { return trailerKey(k) || exitKey(k) || qmenuKey(k) || menuKey(k) || duoKey(k) || channelKey(k) || liveBarKey(k) || Player.key(k); };
+    Nav.onkey = function (k) {
+      if (k >= K.RED && k <= K.BLUE && semCores()) store('ctv.cores', 1); // este controle tem as teclas coloridas
+      return trailerKey(k) || exitKey(k) || qmenuKey(k) || menuKey(k) || duoKey(k) || zapKey(k) || channelKey(k) || liveBarKey(k) || vodBarKey(k) || Player.key(k); };
     // o selo ⚙ da qualidade abre o menu com o ponteiro do controle (ou o mouse, no PC)
     document.addEventListener('click', function (e) {
       var chip = e.target.closest && e.target.closest('.qchip'), ch = chip && app.idx[chip.getAttribute('data-ch')];

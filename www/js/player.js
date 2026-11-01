@@ -13,7 +13,7 @@ var Player = (function () {
   var p = { active: false };
   var o = null, gen = 0, pos = 0, dur = 0, paused = false;
   var seekTarget = null, seekTimer, osdTimer, lastSave = 0, lastStep = 0, step = 10000;
-  var retries = 0, retryTimer, connectedAt = 0, MAX_RETRIES = 3;
+  var retries = 0, retryTimer, connectedAt = 0, MAX_RETRIES = 3, trocas = 0;
   var hls = null; // só no navegador (testes): o Chrome não toca HLS nativamente
 
   function avplay() { return window.webapis && webapis.avplay; }
@@ -36,6 +36,17 @@ var Player = (function () {
   // ao vivo: o sinal cai com frequência, então tenta reconectar antes de desistir
   function fail(my, text) {
     if (my !== gen) return;
+    // troca de qualidade (o.troca = "Trocando para HD…"): o fornecedor ainda conta a conexão de antes por uns segundos
+    // (assinatura de 1 tela) e recusa a nova. Não é sinal perdido: tenta de novo, com calma, mostrando a troca
+    if (o.troca && trocas < 8) {
+      trocas++;
+      stopMedia();
+      spin(true);
+      message(o.troca);
+      var de = gen;
+      retryTimer = setTimeout(function () { if (de === gen) start(); }, 1500);
+      return;
+    }
     if (!o.live) return error(text);
     if (connectedAt && Date.now() - connectedAt > 30000) retries = 0; // estava tocando bem: queda nova
     if (retries >= MAX_RETRIES) return o.onstall && o.onstall() ? null : error(text); // antes do erro: qualidade menor
@@ -62,6 +73,7 @@ var Player = (function () {
 
   function connected(my) {
     if (my !== gen) return;
+    o.troca = ''; // trocou: daqui para frente, queda é queda
     connectedAt = Date.now();
     spin(false);
     message('');
@@ -382,7 +394,7 @@ var Player = (function () {
     stopMedia();
     o = opts;
     pos = 0; dur = 0; paused = false; seekTarget = null; lastSave = Date.now();
-    retries = 0; connectedAt = 0; stalls = [];
+    retries = 0; connectedAt = 0; stalls = []; trocas = 0;
     p.active = true;
     $('player').classList.remove('hidden');
     $('pTitle').textContent = o.title || '';
@@ -397,7 +409,7 @@ var Player = (function () {
     $('pLive').querySelector('.hint').innerHTML = o.audio ? '▲▼ trocar rádio &nbsp;·&nbsp; <i class="k red"></i> favoritar &nbsp;·&nbsp; <i class="k ok">Voltar</i> sai'
       : '▲▼ trocar canal &nbsp;·&nbsp; 0–9 número do canal &nbsp;·&nbsp; <i class="k red"></i> favoritar';
     $('pVod').classList.toggle('hidden', !!o.live);
-    message('');
+    message(o.troca || '');
     spin(true);
     update();
     showOsd();

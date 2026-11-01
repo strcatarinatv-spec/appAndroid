@@ -500,6 +500,33 @@ html.tv { background: transparent; } /* o vídeo do AVPlay fica atrás da págin
 }
 #pLive { font-size: 28px; }
 #pLive .hint { margin-left: 22px; color: #c8ccd4; vertical-align: middle; }
+#pVodKeys .o-opts { margin: 0 22px 0 0; vertical-align: middle; }
+/* lista de canais por cima do vídeo: vidro (o vídeo da TV fica atrás da página: o desfoque vale no navegador;
+   na TV fica o vidro escuro translúcido com o brilho da borda) */
+#zap {
+    position: absolute; left: 48px; top: 48px; bottom: 48px; width: 660px; z-index: 5; padding: 30px 0 24px;
+    border-radius: 34px; overflow: hidden;
+    background: -webkit-linear-gradient(top, rgba(40, 46, 62, .62), rgba(14, 16, 24, .72));
+    background: linear-gradient(180deg, rgba(40, 46, 62, .62), rgba(14, 16, 24, .72));
+    -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 0 0 1.5px rgba(255, 255, 255, .12);
+}
+#zap .zh { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; padding: 0 30px 18px; font-size: 26px; color: #8b92a0; }
+#zap .zh b { -webkit-flex: 1; flex: 1; text-align: center; font-size: 28px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 12px; }
+#zapL { padding: 0 18px; }
+#zap .zr { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; height: 86px; padding: 0 16px; margin-bottom: 4px; border-radius: 20px; }
+#zap .zr.sel { background: rgba(255, 255, 255, .92); box-shadow: 0 8px 24px rgba(0, 0, 0, .3); }
+#zap .zn { width: 56px; font-size: 24px; color: #8b92a0; }
+#zap .zr img, #zap .zi { width: 84px; height: 56px; margin-right: 18px; object-fit: contain; }
+#zap .zi { line-height: 56px; text-align: center; font-size: 30px; font-weight: 800; color: #5b6272; }
+#zap .zr div { -webkit-flex: 1; flex: 1; min-width: 0; }
+#zap .zr b { display: block; font-size: 28px; color: #eef0f4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#zap .zr small { display: block; font-size: 21px; color: #a3aab8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#zap .zr.sel b, #zap .zr.sel .zn { color: #0b0d12; }
+#zap .zr.sel small { color: #4a5160; }
+#zap .zr.tocando b:after { content: '  ● no ar'; font-size: 18px; color: #e53935; }
+#zap .zv { padding: 30px 16px; font-size: 24px; color: #a3aab8; }
+#zap .zk { position: absolute; left: 30px; right: 30px; bottom: 22px; font-size: 19px; color: #a3aab8; }
 /* ao vivo com guia: programa, barra com horários e o próximo */
 .o-prg { font-size: 46px; font-weight: 800; letter-spacing: -1px; margin-bottom: 14px; }
 .o-time { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; font-size: 26px; color: #d0d4dc; }

@@ -41,6 +41,7 @@ import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 import java.util.zip.ZipInputStream
 import kotlin.concurrent.thread
 
@@ -411,6 +412,14 @@ class MainActivity : Activity() {
         @JavascriptInterface fun model(): String = "Android · ${Build.MANUFACTURER} ${Build.MODEL}"
         @JavascriptInterface fun exit() = naTela { finish() }
         @JavascriptInterface fun versao(): String = pacote.versionName ?: ""
+        // o Android não deixa o app ler o MAC de verdade: um "MAC" fixo tirado do ID do aparelho (não muda ao reinstalar,
+        // com a mesma chave do APK), para o portal reconhecer sempre a mesma TV e o cadastro do cliente valer por ele
+        @JavascriptInterface fun mac(): String {
+            val id = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: return ""
+            val h = MessageDigest.getInstance("SHA-256").digest(id.toByteArray())
+            h[0] = ((h[0].toInt() and 0xFC) or 0x02).toByte() // endereço "local": não é o de nenhum fabricante
+            return (0 until 6).joinToString(":") { "%02X".format(h[it]) }
+        }
         @JavascriptInterface fun atualizar(link: String) = naTela { buscarVersao(link.trim().ifEmpty { PADRAO }, true) }
     }
 }
