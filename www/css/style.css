@@ -1,0 +1,722 @@
+/* cTV — identidade: azul #1673B9 · verde #3BAA4A · laranja #F39323 · grafite #343840
+ * Sem variáveis CSS para funcionar em TVs Samsung antigas (Chromium 47). */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    width: 1920px; height: 1080px; overflow: hidden;
+    color: #eef0f4; background: transparent;
+    font-family: "SamsungOneUI", "SamsungOne", "Tizen Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+html { background: #000; }
+html.tv { background: transparent; } /* o vídeo do AVPlay fica atrás da página */
+
+.hidden { display: none !important; }
+
+#av, #vid, #vid2 { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+#vid, #vid2 { display: none; background: #000; }
+
+.layer { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; }
+
+/* ---------- Marca ---------- */
+
+.brand { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; }
+.brand .mark { width: 56px; height: 56px; -webkit-flex-shrink: 0; flex-shrink: 0; }
+.brand .word { font-size: 44px; font-weight: 600; letter-spacing: -1px; margin-left: 14px; color: #fff; }
+.brand .word b { font-weight: 800; font-style: italic; }
+
+.glow, #shell {
+    background:
+        radial-gradient(900px 600px at 0% 0%, rgba(22, 115, 185, .22), rgba(22, 115, 185, 0) 70%),
+        radial-gradient(700px 500px at 100% 100%, rgba(243, 147, 35, .10), rgba(243, 147, 35, 0) 70%),
+        radial-gradient(700px 500px at 60% 110%, rgba(59, 170, 74, .10), rgba(59, 170, 74, 0) 70%),
+        #0b0d12;
+}
+.glow { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+
+.k { display: inline-block; width: 26px; height: 26px; border-radius: 6px; vertical-align: middle; margin: 0 8px 0 0; font-style: normal; }
+.k.red { background: #e53935; }
+.k.green { background: #3BAA4A; }
+.k.yellow { background: #F5C04A; }
+.k.blue { background: #1e88e5; }
+.k.ok { width: auto; padding: 0 8px; background: #343840; color: #fff; font-size: 16px; line-height: 26px; font-weight: 700; }
+
+.badge-live {
+    display: inline-block; background: #F39323; color: #0b0d12; font-size: 22px; font-weight: 800;
+    padding: 2px 12px; border-radius: 6px; letter-spacing: 1px; vertical-align: middle;
+}
+
+.spinner {
+    width: 72px; height: 72px; margin: 0 auto; border-radius: 50%;
+    border: 6px solid rgba(255, 255, 255, .15); border-top-color: #3BAA4A;
+    -webkit-animation: spin 1s linear infinite; animation: spin 1s linear infinite;
+}
+@-webkit-keyframes spin { to { -webkit-transform: rotate(360deg); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- Setup ---------- */
+
+#setup { background: #0b0d12; }
+.setup-box { position: absolute; left: 0; right: 0; top: 190px; text-align: center; }
+.brand.big { display: -webkit-inline-flex; display: inline-flex; margin-bottom: 60px; }
+.brand.big .mark { width: 120px; height: 120px; }
+.brand.big .word { font-size: 96px; margin-left: 26px; }
+.brand.big .logo-nome { display: block; height: 150px; } /* logo com o nome (img/logo-nome.png) */
+.setup-box h2 { font-size: 52px; font-weight: 700; letter-spacing: -1px; margin-bottom: 14px; }
+.muted { font-size: 30px; color: #8b92a0; }
+.setup-box .field { display: block; width: 760px; margin: 34px auto 0; text-align: center; }
+.setup-box .btn { margin: 30px 0 0; }
+#pfCancel { margin-left: 20px; }
+
+/* perfis: "Quem está assistindo?" */
+.profiles { margin-top: 50px; font-size: 0; }
+.pf-col { display: inline-block; vertical-align: top; width: 220px; margin: 0 22px; }
+.pf {
+    display: block; text-align: center;
+    -webkit-transition: -webkit-transform .15s; transition: transform .15s;
+}
+/* lápis embaixo do perfil: abre a edição (nome e imagem) */
+.pf-edit {
+    width: 64px; height: 64px; margin: 16px auto 0; border-radius: 50%; text-align: center;
+    font-size: 32px; line-height: 64px; color: #b9bec8; background: rgba(255, 255, 255, .08);
+}
+.pf-edit.focus { color: #0b0d12; background: #fff; -webkit-transform: scale(1.12); transform: scale(1.12); }
+.pf .av {
+    display: block; width: 180px; height: 180px; margin: 0 auto; border-radius: 36px;
+    font-style: normal; font-size: 84px; font-weight: 800; line-height: 180px; color: #fff; background: #343840;
+    border: 5px solid transparent;
+}
+.pf.add .av { background: rgba(255, 255, 255, .08); color: #8b92a0; font-weight: 300; }
+.pf span { display: block; margin-top: 16px; font-size: 30px; color: #b9bec8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf.focus { -webkit-transform: scale(1.08); transform: scale(1.08); }
+.pf.focus .av { border-color: #fff; }
+.pf.focus span { color: #fff; }
+.pf.editing .av { border-color: rgba(255, 255, 255, .35); border-style: dashed; }
+.av.pic { overflow: hidden; background: #343840; }
+.av.pic img { display: block; width: 100%; height: 100%; }
+
+/* editar perfil: nome e imagem (sem o logo grande, para caber a grade) */
+#setup.edit .brand.big { display: none; }
+#setup.edit .setup-box { top: 60px; }
+.pe-head { display: -webkit-inline-flex; display: inline-flex; -webkit-align-items: center; align-items: center; margin-bottom: 14px; }
+.pe-head .av {
+    display: block; width: 140px; height: 140px; margin-right: 30px; border-radius: 30px;
+    font-size: 64px; font-style: normal; font-weight: 800; line-height: 140px; color: #fff;
+}
+.setup-box #peName { display: inline-block; width: 700px; margin: 0; text-align: left; }
+.pe-grid { width: 1520px; margin: 18px auto 6px; font-size: 0; }
+.pe-opt {
+    display: inline-block; vertical-align: top; width: 116px; height: 116px; margin: 7px; border-radius: 26px; border: 5px solid transparent;
+    -webkit-transition: -webkit-transform .12s; transition: transform .12s;
+}
+.pe-opt .av { display: block; width: 100%; height: 100%; border-radius: 21px; font-size: 48px; font-style: normal; font-weight: 800; line-height: 106px; color: #fff; }
+.pe-opt.sel { border-color: #3BAA4A; }
+.pe-opt.focus { border-color: #fff; -webkit-transform: scale(1.1); transform: scale(1.1); }
+.info .bad { color: #ff8a80; }
+
+/* TV sem cliente: QR do WhatsApp do atendimento com o MAC */
+.support { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; margin: 22px 176px 0; }
+.support .qr { -webkit-flex-shrink: 0; flex-shrink: 0; border-radius: 12px; }
+.support p { max-width: 640px; margin-left: 36px; font-size: 28px; line-height: 1.45; color: #d0d4dc; }
+.notice { max-width: 1100px; margin: 30px auto 10px; font-size: 40px; line-height: 1.4; white-space: pre-line; }
+.err { min-height: 36px; margin-top: 26px; font-size: 28px; color: #ff8a80; }
+.pair-url { font-size: 50px; font-weight: 700; color: #5fb0ef; margin: 12px 0 30px; }
+.pair-code {
+    font-size: 132px; font-weight: 800; letter-spacing: 20px; margin: 10px 0 50px;
+    color: #fff;
+    background: -webkit-linear-gradient(45deg, #1673B9, #3BAA4A 55%, #F39323);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+
+/* ---------- Campos e botões ---------- */
+
+.field {
+    width: 100%; height: 90px; padding: 0 32px; font-size: 34px; font-family: inherit; color: #fff;
+    background: #1a1f29; border: 4px solid #2a303c; border-radius: 18px; outline: none;
+}
+.field::-webkit-input-placeholder { color: #5f6673; }
+.field.focus { border-color: #fff; }
+
+.btn {
+    display: inline-block; height: 76px; line-height: 76px; padding: 0 42px; margin-right: 20px;
+    font-size: 30px; font-weight: 600; color: #fff; white-space: nowrap;
+    background: rgba(255, 255, 255, .12); border-radius: 16px;
+    -webkit-transition: -webkit-transform .15s; transition: transform .15s;
+}
+.btn.primary { background: #1673B9; }
+.btn.sel { color: #7fd38b; }
+.btn.focus { background: #fff; color: #0b0d12; -webkit-transform: scale(1.06); transform: scale(1.06); }
+
+/* ---------- Menu lateral ---------- */
+
+#side {
+    position: absolute; left: 0; top: 0; width: 120px; height: 1080px; z-index: 5;
+    background: -webkit-linear-gradient(left, rgba(11, 13, 18, .85), rgba(11, 13, 18, 0));
+    background: linear-gradient(90deg, rgba(11, 13, 18, .85), rgba(11, 13, 18, 0));
+    -webkit-transition: width .2s; transition: width .2s;
+}
+#side .brand { position: absolute; left: 32px; top: 46px; }
+#side .word { display: none; }
+#side .brand .mark { -webkit-transition: -webkit-transform .15s; transition: transform .15s; }
+#side .brand.focus .mark { -webkit-transform: scale(1.15); transform: scale(1.15); } /* discreto: é a entrada escondida */
+#side .menu { position: absolute; left: 22px; top: 250px; }
+.mi {
+    position: relative; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+    width: 76px; height: 72px; padding-left: 19px; margin-bottom: 16px; border-radius: 18px;
+    color: #7d8390; overflow: hidden; white-space: nowrap;
+}
+.mi svg { width: 38px; height: 38px; -webkit-flex-shrink: 0; flex-shrink: 0; }
+.mi span { font-size: 30px; font-weight: 600; margin-left: 26px; opacity: 0; }
+.mi.active { color: #fff; overflow: visible; }
+.mi.active:before {
+    content: ''; position: absolute; left: -22px; top: 16px; width: 6px; height: 40px; border-radius: 3px;
+    background: -webkit-linear-gradient(top, #1673B9, #3BAA4A 55%, #F39323);
+    background: linear-gradient(180deg, #1673B9, #3BAA4A 55%, #F39323);
+}
+.mi.focus { background: #fff; color: #0b0d12; }
+
+#shell.side-open #side {
+    width: 440px;
+    background: -webkit-linear-gradient(left, #0b0d12 55%, rgba(11, 13, 18, 0));
+    background: linear-gradient(90deg, #0b0d12 55%, rgba(11, 13, 18, 0));
+}
+#shell.side-open #side .word { display: inline; }
+#shell.side-open .mi { width: 340px; }
+#shell.side-open .mi span { opacity: 1; }
+
+#clock { position: absolute; right: 80px; top: 44px; text-align: right; z-index: 5; text-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
+#clock .time { display: block; font-size: 48px; font-weight: 700; letter-spacing: -1px; }
+#clock .date { font-size: 26px; color: #b9bec8; }
+#clock .hi, #clock .wx { display: none; }
+#shell.home #clock .hi { display: block; margin-bottom: 4px; font-size: 26px; color: #d0d4dc; }
+#shell.home #clock .wx { display: block; margin-top: 10px; font-size: 26px; color: #d0d4dc; }
+#clock .wx svg { width: 36px; height: 36px; margin-right: 8px; vertical-align: -9px; }
+#clock .wx i { font-style: normal; margin-left: 14px; color: #8fc7ff; }
+/* ---------- Destaque (hero) ---------- */
+
+#backdrop, #hero { display: none; }
+#shell.browse #backdrop, #shell.browse #hero { display: block; }
+
+/* a imagem do destaque fica à direita, no mesmo lugar da prévia dos canais (não ocupa a tela toda) */
+#backdrop { position: absolute; right: 0; top: 0; width: 1180px; height: 664px; }
+/* a máscara esfuma a imagem para a esquerda e para baixo, deixando o texto legível */
+#bdImg {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    background-repeat: no-repeat; background-size: cover; background-position: center 20%;
+    -webkit-mask-image: -webkit-linear-gradient(left, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, .45) 22%, #000 45%), -webkit-linear-gradient(bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, .55) 18%, #000 40%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .45) 22%, #000 45%), linear-gradient(0deg, transparent 0%, rgba(0, 0, 0, .55) 18%, #000 40%);
+    mask-composite: intersect;
+}
+#bdImg { opacity: 0; -webkit-transition: opacity .35s; transition: opacity .35s; } /* preto até a imagem chegar; ela entra esmaecendo */
+#bdImg.wide { opacity: .85; }
+/* sem cena no TMDB: a capa na altura toda, mais para a direita, no mesmo lugar */
+#bdImg.poster { background-size: auto 100%; background-position: 80% center; opacity: .9; }
+/* à direita do destaque (antes da coluna do relógio): a prévia do canal ou a capa nítida do filme/série */
+#heroSide { display: none; position: absolute; right: 440px; top: 150px; }
+#shell.browse #heroSide { display: block; }
+#heroSide .pv-box { width: 560px; height: 315px; margin: 0; box-shadow: inset 0 0 0 2px #1f2430; }
+/* canal: a prévia ocupa o fundo do destaque (como a imagem de fundo dos filmes), atrás do título e do relógio;
+   o degradê da página por cima esfuma a borda esquerda e a de baixo do vídeo */
+#heroSide.hlive { right: 0; top: 0; }
+#heroSide.hlive .pv-box { width: 1180px; height: 664px; border-radius: 0; box-shadow: none; background: transparent;
+    -webkit-align-items: flex-end; align-items: flex-end; padding-right: 160px; }
+#heroSide.hlive .pv-box img { max-width: 260px; max-height: 160px; opacity: .5; }
+#heroSide.hlive .pv-box span { color: #262b35; }
+#heroSide.hlive:after {
+    content: ''; position: absolute; left: -8px; top: 0; right: 0; bottom: -8px; pointer-events: none; /* passa da borda: sem fio */
+    background: -webkit-linear-gradient(left, #0b0d12 0%, #0b0d12 3%, rgba(11, 13, 18, .55) 24%, rgba(11, 13, 18, 0) 50%), -webkit-linear-gradient(bottom, #0b0d12 0%, #0b0d12 4%, rgba(11, 13, 18, 0) 38%);
+    background: linear-gradient(90deg, #0b0d12 0%, #0b0d12 3%, rgba(11, 13, 18, .55) 24%, rgba(11, 13, 18, 0) 50%), linear-gradient(0deg, #0b0d12 0%, #0b0d12 4%, rgba(11, 13, 18, 0) 38%);
+}
+
+#hero { position: absolute; left: 176px; top: 150px; width: 1020px; z-index: 1; } /* por cima da prévia do canal (#heroSide) */
+#heroTitle {
+    font-size: 100px; font-weight: 800; letter-spacing: -3px; line-height: 1.02; color: #f4f1ea;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    text-shadow: 0 4px 30px rgba(0, 0, 0, .5);
+}
+#heroTitle.long { font-size: 74px; letter-spacing: -2px; }
+#heroMeta { margin-top: 26px; font-size: 31px; color: #d0d4dc; }
+#heroMeta .dot { font-style: normal; margin: 0 16px; color: #6c7280; }
+#heroMeta .rating { color: #F5C04A; }
+#heroDesc {
+    margin-top: 22px; font-size: 32px; line-height: 1.38; color: #b9bec8;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+#heroMeta .kind { color: #F5C04A; font-weight: 700; }
+/* canal: programa no ar com horário e barra */
+#heroLive { max-width: 760px; color: #b9bec8; }
+#heroLive b { display: block; margin-top: 22px; font-size: 40px; font-weight: 800; color: #f4f1ea; }
+#heroLive .when { display: block; margin: 6px 0 14px; font-size: 28px; }
+#heroLive .ebar { height: 8px; }
+.hkeys { margin-top: 22px; font-size: 24px; color: #a7adb9; }
+.hkeys span { margin-right: 30px; }
+
+/* qualidade do canal (SD/HD/FHD/4K) */
+.q {
+    display: inline-block; margin-left: 10px; padding: 0 8px; border: 2px solid rgba(255, 255, 255, .35); border-radius: 6px;
+    font-size: .62em; font-style: normal; font-weight: 700; line-height: 1.45; vertical-align: middle; color: #c8ccd4;
+}
+/* progresso do programa no ar */
+.ebar { position: relative; display: block; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .22); overflow: hidden; }
+.ebar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: #F5C04A; }
+.badge-now { color: #ff6b6b; font-weight: 800; }
+
+/* ---------- Telas ---------- */
+
+.view { display: none; }
+.view.active { display: block; }
+
+.vscroll { position: absolute; left: 0; right: 0; top: 170px; bottom: 0; overflow: hidden; }
+.browse .vscroll { top: 580px; }
+.vscroll:after { content: ''; display: block; height: 700px; } /* permite alinhar a última fileira no topo */
+.vtitle { position: absolute; left: 176px; top: 62px; font-size: 58px; font-weight: 800; letter-spacing: -1.5px; }
+.vtitle small, .row h3 small { font-size: .55em; font-weight: 500; color: #7c8391; letter-spacing: 0; margin-left: 10px; }
+.empty { margin: 30px 176px; font-size: 32px; line-height: 1.6; color: #8b92a0; }
+.empty b { color: #5fb0ef; }
+.info { margin: 4px 176px 0; font-size: 26px; color: #8b92a0; }
+.info b { color: #5fb0ef; }
+#v-settings .row { margin-bottom: 34px; }
+#v-settings .track { padding-bottom: 20px; }
+#v-settings .track .field { display: inline-block; width: 900px; height: 76px; margin-right: 20px; vertical-align: top; }
+#v-settings .track .grp-name { width: 640px; }
+/* Ajustes → grupos ocultos / grupo do perfil: uma opção por linha */
+#v-settings .row.opt { margin-bottom: 0; }
+#v-settings .row.opt .track { padding-top: 4px; padding-bottom: 4px; }
+#v-settings h3.sub { margin-top: 10px; font-size: 26px; color: #8b92a0; }
+.btn.opt { display: block; width: 1300px; height: 66px; line-height: 66px; margin-right: 0; border-radius: 14px; font-size: 28px; }
+.btn.opt small { float: right; font-size: 24px; color: #8b92a0; }
+.btn.opt small b { color: #3BAA4A; }
+.btn.opt.on small b { color: #ff8a80; }
+.btn.opt.on span { opacity: .5; }
+.btn.opt.focus { -webkit-transform: scale(1.02); transform: scale(1.02); }
+.btn.opt.focus span, .btn.opt.focus small, .btn.opt.focus small b { color: #0b0d12; }
+
+/* ---------- Fileiras e cards ---------- */
+
+.row { position: relative; }
+.row h3 { margin-left: 176px; font-size: 34px; font-weight: 700; letter-spacing: -.5px; }
+.track { position: relative; white-space: nowrap; overflow: hidden; padding: 22px 0 40px 176px; font-size: 0; }
+
+.card {
+    position: relative; display: inline-block; vertical-align: top; margin-right: 26px;
+    border-radius: 14px; background: #1a1f29; overflow: hidden; white-space: normal;
+    -webkit-transition: -webkit-transform .15s, box-shadow .15s; transition: transform .15s, box-shadow .15s;
+}
+.card.focus {
+    z-index: 2; -webkit-transform: scale(1.07); transform: scale(1.07);
+    box-shadow: 0 0 0 5px #fff, 0 20px 40px rgba(0, 0, 0, .6);
+}
+.card img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; }
+.card .ph {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0; padding: 18px;
+    display: -webkit-flex; display: flex; -webkit-align-items: flex-end; align-items: flex-end;
+    font-size: 25px; font-weight: 600; line-height: 1.25; color: #aeb4bf;
+    background: -webkit-linear-gradient(-30deg, #1f2a38, #141820);
+    background: linear-gradient(160deg, #1f2a38, #141820);
+}
+.card .star { display: none; position: absolute; right: 10px; top: 6px; font-size: 30px; color: #F39323; text-shadow: 0 2px 8px rgba(0, 0, 0, .8); }
+.card.is-fav .star { display: block; }
+.card .prog { position: absolute; left: 14px; right: 14px; bottom: 14px; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .25); }
+.prog i {
+    display: block; height: 100%; border-radius: 4px;
+    background: -webkit-linear-gradient(left, #1673B9, #3BAA4A);
+    background: linear-gradient(90deg, #1673B9, #3BAA4A);
+}
+.card .tagline {
+    position: absolute; left: 10px; top: 10px; padding: 4px 12px; border-radius: 8px;
+    font-size: 21px; font-weight: 700; background: rgba(11, 13, 18, .8);
+}
+
+.card.poster { width: 230px; height: 345px; }
+/* Top 10: número grande vazado ao lado da capa */
+.rank {
+    display: inline-block; vertical-align: top; height: 345px; line-height: 400px; margin-right: -18px;
+    font-size: 300px; font-weight: 800; letter-spacing: -20px; color: #0b0d12;
+    -webkit-text-stroke: 5px #6c7280; position: relative; z-index: 0;
+}
+.card.poster.top { z-index: 1; }
+
+/* Filmes / Séries: chips de gênero na fileira do destaque */
+.row.vod .track { padding-top: 0; }
+.btn.chip { height: 64px; line-height: 64px; padding: 0 30px; font-size: 26px; font-weight: 500; border-radius: 32px; background: rgba(255, 255, 255, .08); }
+.btn.chip.focus { background: #fff; }
+
+.card.wide { width: 330px; height: 190px; background: #161b24; }
+.card.wide .logo {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 52px;
+    display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+}
+.card.wide .logo img { position: static; width: auto; height: auto; max-width: 62%; max-height: 74%; object-fit: contain; }
+.card.wide .logo .ph { position: static; padding: 0; background: none; font-size: 44px; font-weight: 800; color: #343840; }
+.card.wide .cap {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 52px; line-height: 52px; padding: 0 16px;
+    font-size: 23px; font-weight: 600; background: rgba(0, 0, 0, .3);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.card.wide .cap i { font-style: normal; color: #7c8391; margin-right: 10px; }
+/* jogo ou luta de hoje: horário em amarelo, "AO VIVO" em vermelho */
+.card.ev .cap i { color: #F5C04A; }
+.card.ev .cap i.evl { color: #ff6b6b; }
+/* com guia: nome, programa e barra embaixo do logo */
+.card.wide.has-prg .logo { bottom: 92px; }
+.card.wide.has-prg .cap { bottom: 40px; height: 46px; line-height: 50px; background: none; }
+.card.wide .prg {
+    position: absolute; left: 16px; right: 16px; bottom: 16px; font-size: 21px; color: #b9bec8;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.card.wide .ebar { position: absolute; left: 16px; right: 16px; bottom: 8px; height: 4px; }
+.card.wide.has-prg { background: -webkit-linear-gradient(top, #1d2330, #12161e); background: linear-gradient(180deg, #1d2330, #12161e); }
+
+.card.more {
+    display: -webkit-inline-flex; display: inline-flex; -webkit-flex-direction: column; flex-direction: column;
+    -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+    font-size: 26px; color: #b9bec8; background: #161b24; border: 3px solid #2a303c;
+}
+.card.more b { font-size: 46px; color: #fff; margin-top: 6px; }
+
+.grid { padding: 22px 120px 60px 176px; font-size: 0; }
+.grid .card { margin-bottom: 34px; }
+
+/* ---------- Detalhes ---------- */
+
+.row.btns .track { padding-top: 8px; padding-bottom: 34px; }
+.row.seasons .track { padding-top: 0; padding-bottom: 26px; }
+/* ficha do TMDB: frase, classificação, gêneros, elenco e direção */
+.d-info { padding: 0 120px 26px 176px; max-width: 1500px; }
+.d-info p { margin-bottom: 10px; font-size: 26px; line-height: 1.4; color: #b9bec8; }
+.d-info p.tl { font-style: italic; color: #d0d4dc; }
+.d-info b { margin-right: 12px; color: #fff; }
+.d-info .dot { margin: 0 12px; font-style: normal; color: #5f6673; }
+.cert { display: inline-block; min-width: 40px; padding: 0 8px; border-radius: 6px; text-align: center; font-weight: 800; color: #fff; background: #343840; }
+.cert.cL { background: #3BAA4A; } .cert.c10 { background: #1673B9; } .cert.c12 { background: #F5C04A; color: #0b0d12; }
+.cert.c14 { background: #F39323; } .cert.c16 { background: #e53935; } .cert.c18 { background: #000; border: 2px solid #fff; }
+.tab {
+    display: inline-block; height: 60px; line-height: 60px; padding: 0 30px; margin-right: 14px;
+    font-size: 26px; font-weight: 600; color: #b9bec8; border-radius: 30px; background: rgba(255, 255, 255, .08);
+}
+.tab.sel { color: #fff; background: rgba(255, 255, 255, .22); }
+.tab.focus { color: #0b0d12; background: #fff; }
+
+.card.ep { width: 400px; height: 150px; padding: 20px 24px; background: #1a1f29; }
+.card.ep b { display: block; font-size: 40px; font-weight: 800; color: #5fb0ef; }
+.card.ep span { display: block; font-size: 24px; color: #d0d4dc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card.ep em { position: absolute; right: 20px; top: 22px; font-style: normal; font-size: 20px; color: #3BAA4A; }
+
+/* ---------- Ao vivo ---------- */
+
+.live { position: absolute; left: 176px; right: 80px; top: 170px; bottom: 40px; display: -webkit-flex; display: flex; }
+.list { list-style: none; overflow: hidden; border-radius: 18px; }
+#liveGroups { width: 430px; margin-right: 26px; }
+#liveChannels { width: 720px; }
+.list li {
+    display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+    height: 76px; padding: 0 22px; border-radius: 14px; font-size: 28px; color: #b9bec8;
+    white-space: nowrap; overflow: hidden;
+}
+.list .t { -webkit-flex: 1; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.list .n { color: #6c7280; font-size: 24px; }
+#liveGroups .n { margin-left: 12px; }
+#liveChannels .n { width: 72px; -webkit-flex-shrink: 0; flex-shrink: 0; }
+.list .lg {
+    width: 84px; height: 50px; margin-right: 18px; -webkit-flex-shrink: 0; flex-shrink: 0;
+    display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+}
+.list .lg img { max-width: 100%; max-height: 100%; }
+.list .star { color: #F39323; margin-left: 10px; }
+.list li.empty { white-space: normal; height: auto; padding: 22px; color: #8b92a0; }
+.list li.sel { background: rgba(255, 255, 255, .08); color: #fff; }
+.list.focus li.sel { background: #fff; color: #0b0d12; }
+.list.focus li.sel .n { color: #6c7280; }
+.list li.playing .cn:before { content: '●  '; color: #3BAA4A; }
+/* canal com guia: nome, programa no ar e barra */
+#liveChannels .t { display: block; }
+#liveChannels .cn { display: block; overflow: hidden; text-overflow: ellipsis; }
+#liveChannels small { display: block; margin-top: 2px; font-size: 21px; color: #8b92a0; overflow: hidden; text-overflow: ellipsis; }
+#liveChannels .ebar { width: 240px; height: 4px; margin-top: 5px; }
+.list.focus li.sel small { color: #4a505c; }
+.list.focus li.sel .q { color: #0b0d12; border-color: rgba(11, 13, 18, .4); }
+
+.live-info { -webkit-flex: 1; flex: 1; margin-left: 40px; padding: 30px 34px; border-radius: 22px; background: #141821; overflow: hidden; }
+.live-info .num { font-size: 28px; font-weight: 700; color: #5fb0ef; }
+.live-info .num b { color: #eef0f4; margin-left: 6px; }
+.live-info .qs { margin-top: 8px; font-size: 24px; color: #8b92a0; }
+.live-info .qs b { color: #fff; }
+.q.more { opacity: .6; }
+.live-info h2 { font-size: 42px; font-weight: 800; letter-spacing: -1px; margin: 6px 0; line-height: 1.12; }
+.live-info p { font-size: 26px; color: #8b92a0; }
+.live-info .when { margin-bottom: 12px; color: #d0d4dc; }
+.live-info .ebar { height: 6px; }
+.live-info .desc { margin-top: 16px; font-size: 24px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.live-info .nx { margin-top: 18px; padding-top: 16px; border-top: 1px solid #262b35; font-size: 26px; color: #d0d4dc; }
+.live-info .nx b { display: block; font-size: 20px; letter-spacing: 1px; color: #8b92a0; }
+.live-info .keys { margin-top: 26px; font-size: 23px; color: #a7adb9; }
+.live-info .keys span { display: inline-block; margin: 0 26px 12px 0; }
+
+/* prévia ao vivo: logo e "Sintonizando…" até o vídeo aparecer pelo furo */
+.pv-box {
+    position: relative; height: 230px; margin-bottom: 24px; border-radius: 16px; background: #0f1218; overflow: hidden;
+    display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column;
+    -webkit-align-items: center; -webkit-justify-content: center; align-items: center; justify-content: center;
+}
+.pv-box img { max-width: 50%; max-height: 50%; }
+.pv-box span { font-size: 100px; font-weight: 800; color: #343840; }
+.pv-box em { margin-top: 14px; font-style: normal; font-size: 22px; color: #8b92a0; }
+.pv-box em:empty { display: none; }
+.pv-box.on { background: transparent; }
+.pv-box.on img, .pv-box.on span { display: none; }
+#pvHole { display: none; position: absolute; z-index: 0; border-radius: 16px; box-shadow: 0 0 0 4000px #0b0d12; }
+#shell.pv { background: transparent; }
+#shell.pv #pvHole { display: block; }
+#shell.pv .live-info { background: transparent; box-shadow: inset 0 0 0 2px #1f2430; }
+
+/* ---------- Busca ---------- */
+
+.search-bar { position: absolute; left: 176px; top: 56px; width: 1240px; }
+#v-search .vscroll { top: 180px; }
+
+/* ---------- Player ---------- */
+
+#player { z-index: 2; }
+.osd { opacity: 0; -webkit-transition: opacity .3s; transition: opacity .3s; }
+#player.show .osd { opacity: 1; }
+#pTop {
+    position: absolute; left: 0; top: 0; right: 0; height: 280px; padding: 60px 100px;
+    display: -webkit-flex; display: flex; -webkit-align-items: flex-start; align-items: flex-start;
+    background: -webkit-linear-gradient(top, rgba(0, 0, 0, .85), rgba(0, 0, 0, 0));
+    background: linear-gradient(180deg, rgba(0, 0, 0, .85), rgba(0, 0, 0, 0));
+}
+#pLogo { height: 100px; max-width: 180px; object-fit: contain; margin-right: 34px; }
+.ptxt { -webkit-flex: 1; flex: 1; }
+#pSub { font-size: 28px; color: #c8ccd4; }
+#pTitle { font-size: 58px; font-weight: 800; letter-spacing: -1.5px; }
+#pClock .time { font-size: 46px; font-weight: 700; }
+#pBottom {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 280px; padding: 0 100px 64px;
+    display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; -webkit-justify-content: flex-end; justify-content: flex-end;
+    background: -webkit-linear-gradient(bottom, rgba(0, 0, 0, .85), rgba(0, 0, 0, 0));
+    background: linear-gradient(0deg, rgba(0, 0, 0, .85), rgba(0, 0, 0, 0));
+}
+#pLive { font-size: 28px; }
+#pLive .hint { margin-left: 22px; color: #c8ccd4; vertical-align: middle; }
+/* ao vivo com guia: programa, barra com horários e o próximo */
+.o-prg { font-size: 46px; font-weight: 800; letter-spacing: -1px; margin-bottom: 14px; }
+.o-time { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; font-size: 26px; color: #d0d4dc; }
+.o-time .ebar { -webkit-flex: 1; flex: 1; height: 7px; margin: 0 20px; }
+.o-next { margin-top: 14px; font-size: 26px; color: #b9bec8; }
+.o-next b { color: #eef0f4; font-weight: 600; }
+.o-keys { margin-top: 20px; }
+
+/* ---------- Guia ---------- */
+
+#v-guide .g-info { position: absolute; left: 176px; top: 56px; width: 1060px; }
+.g-info .num { font-size: 28px; font-weight: 700; color: #F5C04A; }
+.g-info .num b { color: #eef0f4; margin-left: 6px; }
+.g-info h2 { font-size: 54px; font-weight: 800; letter-spacing: -1.5px; margin: 6px 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-info .when { font-size: 27px; color: #d0d4dc; }
+.g-info .desc { margin-top: 12px; font-size: 25px; line-height: 1.4; color: #a7adb9; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#v-guide .g-pv { position: absolute; right: 80px; top: 56px; width: 500px; }
+#v-guide .g-pv .pv-box { height: 282px; margin: 0; }
+.g-group {
+    position: absolute; left: 176px; top: 372px; height: 56px; line-height: 56px; padding: 0 26px; border-radius: 28px;
+    font-size: 26px; font-weight: 700; background: rgba(255, 255, 255, .08); white-space: nowrap;
+}
+.g-group b { margin: 0 16px; color: #8b92a0; }
+.g-group span { margin-left: 8px; font-size: 21px; font-weight: 500; color: #8b92a0; }
+.g-group.focus { background: #fff; color: #0b0d12; }
+.g-group .g-day { margin-left: 24px; font-style: normal; font-size: 21px; font-weight: 700; color: #F5C04A; }
+.g-hint { position: absolute; left: 820px; top: 384px; font-size: 22px; color: #8b92a0; }
+.g-grid { position: absolute; left: 176px; right: 0; top: 452px; bottom: 0; }
+.g-hours { position: relative; height: 46px; margin-left: 280px; border-bottom: 1px solid #262b35; }
+.g-hours span { position: absolute; top: 4px; font-size: 22px; color: #8b92a0; }
+.g-now { position: absolute; top: 0; border-left: 3px solid #F5C04A; z-index: 3; }
+.g-now b {
+    position: absolute; top: 2px; left: -38px; width: 76px; text-align: center; border-radius: 8px;
+    font-size: 20px; color: #0b0d12; background: #F5C04A;
+}
+.g-row { position: relative; height: 84px; margin-top: 8px; }
+.g-ch {
+    position: absolute; left: 0; top: 0; width: 266px; height: 76px; padding: 0 12px; border-radius: 12px; background: #161b24;
+    display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; overflow: hidden;
+}
+.g-row.cur .g-ch { background: #232a37; }
+.g-ch .lg { width: 70px; height: 44px; margin-right: 12px; -webkit-flex-shrink: 0; flex-shrink: 0; text-align: center; }
+.g-ch .lg img { max-width: 100%; max-height: 100%; }
+.g-ch .cn { font-size: 22px; font-weight: 700; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.g-ch .cn i { display: block; font-style: normal; font-size: 19px; color: #F5C04A; }
+.g-line { position: absolute; left: 280px; top: 0; width: 1384px; height: 76px; overflow: hidden; }
+.g-p {
+    position: absolute; top: 0; height: 76px; padding: 10px 14px; border-radius: 12px; background: #1a1f29; overflow: hidden;
+}
+.g-p b { display: block; font-size: 23px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-p span { font-size: 19px; color: #8b92a0; }
+.g-p .ebar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; border-radius: 0; }
+.g-p.past { background: #12161e; color: #8b92a0; }
+.g-p.now { background: #2a3142; }
+.g-p.empty { background: #12161e; color: #6c7280; }
+.g-grid.focus .g-p.sel { background: #fff; color: #0b0d12; }
+.g-grid.focus .g-p.sel span { color: #4a505c; }
+#shell.pv #v-guide .g-pv .pv-box { box-shadow: inset 0 0 0 2px #1f2430; }
+#shell.guide #clock { display: none; }
+.bar { position: relative; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .25); }
+#pProg {
+    height: 100%; border-radius: 4px;
+    background: -webkit-linear-gradient(left, #1673B9, #3BAA4A);
+    background: linear-gradient(90deg, #1673B9, #3BAA4A);
+}
+#pSeek { position: absolute; top: -10px; width: 28px; height: 28px; margin-left: -14px; border-radius: 50%; background: #fff; }
+.times {
+    display: -webkit-flex; display: flex; -webkit-justify-content: space-between; justify-content: space-between;
+    margin-top: 20px; font-size: 28px; color: #d0d4dc;
+}
+#pState { font-weight: 700; color: #fff; }
+#pSpin { position: absolute; left: 50%; top: 50%; margin: -36px 0 0 -36px; }
+#pMsg {
+    position: absolute; left: 360px; right: 360px; top: 470px; padding: 34px 50px; border-radius: 18px;
+    font-size: 32px; text-align: center; background: rgba(11, 13, 18, .9);
+}
+
+/* ---------- Tela dupla ---------- */
+
+#duo { z-index: 3; }
+.duo-pane { position: absolute; border-radius: 14px; box-shadow: 0 0 0 3px #262b35; }
+.duo-pane.sel { box-shadow: 0 0 0 6px #fff; }
+.duo-msg {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0; border-radius: 14px; background: #0f1218;
+    display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column;
+    -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+}
+.duo-msg img { max-width: 40%; max-height: 40%; margin-bottom: 22px; }
+.duo-msg span { max-width: 70%; font-size: 26px; text-align: center; color: #8b92a0; }
+.duo-cap { position: absolute; font-size: 30px; color: #b9bec8; }
+.duo-cap .snd { display: inline-block; margin-right: 18px; padding: 2px 12px; border-radius: 6px; font-size: 20px; font-weight: 800; color: #6c7280; border: 2px solid #343840; vertical-align: middle; }
+.duo-cap.sel .snd { color: #0b0d12; background: #3BAA4A; border-color: #3BAA4A; }
+.duo-cap b { color: #eef0f4; vertical-align: middle; }
+.duo-cap.sel b { color: #fff; }
+.duo-cap small { display: block; margin: 8px 0 10px; font-size: 24px; color: #8b92a0; }
+.duo-cap .ebar { height: 5px; }
+.duo-tag { position: absolute; left: 16px; top: 16px; padding: 4px 14px; border-radius: 8px; font-size: 20px; font-weight: 800; color: #fff; background: rgba(11,13,18,.75); }
+.duo-pane.sel .duo-tag { color: #0b0d12; background: #fff; }
+.duo-strip { position: absolute; left: 32px; right: 32px; top: 740px; height: 240px; white-space: nowrap; }
+.duo-card {
+    display: inline-block; vertical-align: top; width: 290px; height: 220px; margin-right: 23px; padding: 14px 16px;
+    border-radius: 14px; background: #161a22; box-sizing: border-box; white-space: normal; overflow: hidden;
+}
+.duo-card:last-child { margin-right: 0; }
+.duo-card.cur { background: #fff; color: #0b0d12; }
+.duo-card.off { opacity: .35; }
+.duo-card .logo { height: 96px; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; }
+.duo-card .logo img { max-width: 70%; max-height: 80px; }
+.duo-card .logo .ph { font-size: 52px; font-weight: 800; color: #6c7280; }
+.duo-card b { display: block; margin-top: 10px; font-size: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.duo-card small { display: block; margin-top: 6px; font-size: 20px; color: #8b92a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.duo-card.cur small { color: #4a4f5a; }
+.duo-card em { font-style: normal; font-weight: 800; color: #3BAA4A; }
+.duo-keys { position: absolute; left: 32px; right: 32px; bottom: 44px; text-align: center; font-size: 24px; color: #a7adb9; }
+
+/* ---------- Avisos ---------- */
+
+#toast {
+    position: absolute; left: 50%; bottom: 70px; z-index: 50; padding: 18px 40px; border-radius: 40px;
+    -webkit-transform: translateX(-50%); transform: translateX(-50%);
+    font-size: 28px; font-weight: 600; white-space: nowrap;
+    background: rgba(26, 31, 41, .96); border: 2px solid #343840;
+}
+/* "Listas atualizadas": canto de cima, à direita, sem tirar o foco de nada */
+/* menu de qualidade do canal (tecla amarela ou selo ⚙), por cima de tudo, até do vídeo */
+#qmenu {
+    position: absolute; right: 60px; bottom: 200px; z-index: 70; width: 560px; padding: 26px 26px 18px; border-radius: 22px;
+    background: rgba(17, 20, 27, .97); border: 2px solid #343840;
+}
+#qmenu h3 { margin-bottom: 14px; font-size: 28px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#qmenu .qo { padding: 14px 20px; margin-bottom: 6px; border-radius: 14px; background: rgba(255, 255, 255, .06); }
+#qmenu .qo b { display: block; font-size: 28px; color: #eef0f4; }
+#qmenu .qo small { display: block; margin-top: 2px; font-size: 21px; color: #8b92a0; }
+#qmenu .qo.sel { background: #fff; }
+#qmenu .qo.sel b, #qmenu .qo.sel small { color: #0b0d12; }
+#qmenu .hint { margin-top: 12px; font-size: 20px; color: #8b92a0; }
+/* "Sair do Catarina TV?": caixa no meio, com a tela escurecida atrás */
+#exitAsk { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 80; background: rgba(5, 6, 9, .6); }
+#exitAsk .box { position: absolute; left: 560px; top: 400px; width: 800px; padding: 48px 56px; border-radius: 28px; background: rgba(30, 34, 44, .97); border: 2px solid #343840; }
+#exitAsk h3 { margin-bottom: 34px; font-size: 54px; font-weight: 800; letter-spacing: -1px; color: #fff; }
+#exitAsk .btn { margin-right: 24px; padding: 0 48px; }
+.qchip {
+    display: inline-block; margin: 0 14px; padding: 2px 14px; border-radius: 8px; vertical-align: middle;
+    font-size: 22px; font-weight: 700; color: #fff; background: rgba(255, 255, 255, .14); cursor: pointer;
+}
+#corner {
+    position: absolute; right: 40px; top: 36px; z-index: 60; padding: 12px 26px; border-radius: 30px;
+    font-size: 24px; font-weight: 600; color: #fff; white-space: nowrap;
+    background: rgba(26, 31, 41, .94); border: 2px solid #3BAA4A;
+    opacity: 0; -webkit-transition: opacity .3s; transition: opacity .3s;
+}
+#corner.show { opacity: 1; }
+#corner.bad { border-color: #e53935; }
+#chNum {
+    position: absolute; right: 100px; top: 170px; z-index: 45; min-width: 300px; padding: 26px 40px; border-radius: 22px;
+    text-align: right; background: rgba(11, 13, 18, .92); border: 2px solid #343840;
+}
+#chNum b { display: block; font-size: 96px; font-weight: 800; letter-spacing: 4px; line-height: 1; color: #fff; }
+#chNum span { display: block; max-width: 520px; margin-top: 12px; font-size: 28px; color: #b9bec8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#chNum span:empty { display: none; }
+#loading {
+    position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 40; background: rgba(11, 13, 18, .88);
+    display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column;
+    -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+}
+#loadingText { margin-top: 26px; font-size: 30px; color: #b9bec8; }
+
+
+/* trailer do YouTube: tela cheia por cima de tudo, com o título, as teclas e o QR para ver no celular */
+#trailer { display: none; position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 90; background: #000; }
+#trailer.on { display: block; }
+#trailer iframe { width: 1920px; height: 1080px; border: 0; pointer-events: none; }
+#trailer .tr-bar { position: absolute; left: 80px; top: 50px; font-size: 26px; color: #d0d4dc; text-shadow: 0 2px 10px rgba(0, 0, 0, .8); }
+#trailer .tr-bar b { display: block; font-size: 40px; color: #fff; margin-bottom: 8px; }
+#trailer .tr-qr { position: absolute; right: 60px; bottom: 60px; padding: 12px 12px 8px; border-radius: 14px; background: rgba(11, 13, 18, .8); text-align: center; }
+#trailer .tr-qr .qr { display: block; border-radius: 6px; }
+#trailer .tr-qr small { display: block; margin-top: 8px; font-size: 18px; color: #b9bec8; }
+
+/* Onde assistir (JustWatch): crédito pequeno ao lado */
+.d-info .onde small { margin-left: 10px; font-size: .7em; color: #7c8391; }
+
+/* rádio: tela de áudio — fundo escuro, logo grande no meio, nome e rodapé sempre à mostra */
+#pArt { display: none; }
+#player.audio { background: radial-gradient(circle at 50% 40%, #1b2230 0%, #0b0d12 70%); }
+#player.audio #pArt { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+    position: absolute; left: 50%; top: 46%; width: 360px; height: 360px; margin: -180px 0 0 -180px; border-radius: 40px; background: #161b25;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, .6); overflow: hidden; }
+#player.audio #pArt img { max-width: 80%; max-height: 80%; object-fit: contain; }
+#player.audio #pArt span { font-size: 160px; font-weight: 800; color: #3a4252; }
+#player.audio .osd { opacity: 1; }
+#player.audio #pLogo { display: none !important; }
+#player.audio #pSpin { top: auto; bottom: 200px; }
+
+/* Ao vivo: abas Vídeo (canais) e Áudio (rádios) no topo, no estilo das abas de temporada */
+.live-modes { position: absolute; left: 800px; top: 64px; }
+/* aba Áudio: o logo da rádio no lugar da prévia do canal */
+.live-info .pv-box img { max-width: 70%; max-height: 70%; object-fit: contain; }
+.live-info .pv-box > span { font-size: 120px; font-weight: 800; color: #3a4252; }
+
+/* menu do player: títulos de seção (Áudio, Legendas, Temporada 1…) */
+#qmenu .qh { margin: 12px 6px 8px; font-size: 20px; font-weight: 700; color: #8b92a0; text-transform: uppercase; letter-spacing: .5px; }
+/* legenda do AVPlay, escrita pelo app */
+#pSubs { position: absolute; left: 160px; right: 160px; bottom: 120px; text-align: center; font-size: 46px; font-weight: 600; line-height: 1.3;
+    color: #fff; text-shadow: 0 0 6px #000, 0 2px 4px #000; white-space: pre-line; pointer-events: none; z-index: 3; }
+/* rodapé do filme/episódio: as teclas (episódios, áudio e legendas) */
+#pVodKeys { margin-top: 16px; font-size: 22px; color: #b9bec8; }
+
+/* ao vivo: barra de opções no rodapé (qualidades, ♥, ⚙), navegada com ◀ ▶ */
+.o-keys { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; }
+.o-opts { display: -webkit-inline-flex; display: inline-flex; margin: 0 26px 0 18px; }
+.o-opt { display: -webkit-inline-flex; display: inline-flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+    min-width: 64px; height: 50px; padding: 0 20px; margin-right: 10px; border-radius: 25px; background: rgba(255, 255, 255, .12);
+    font-size: 22px; font-weight: 700; color: #d0d4dc; }
+.o-opt.on { color: #fff; box-shadow: inset 0 0 0 2px #fff; }
+.o-opt.fav { font-size: 26px; }
+.o-opt.fav.on { color: #e53935; box-shadow: none; }
+.o-opt svg { width: 26px; height: 26px; }
+.o-opt.focus { background: #fff; color: #0b0d12; }
+.o-opt.fav.on.focus { color: #e53935; }
+.o-keys .hint { font-size: 22px; color: #b9bec8; }
