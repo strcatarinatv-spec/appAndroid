@@ -1654,6 +1654,76 @@ var App = (function () {
     return true;
   }
 
+  /* ---------- Menu facilitador (OK duas vezes, ou dois cliques, com o vídeo aberto) ---------- */
+
+  // Vidro na parte de baixo: em cima, os parecidos com o que está passando (canais do mesmo grupo; filmes ou séries do
+  // mesmo grupo); embaixo, os atalhos Ao vivo, Filmes, Séries e Buscar. ◀ ▶ andam, ▲▼ trocam de fileira, OK abre,
+  // Voltar fecha. Um OK só continua fazendo o de sempre (barra de opções do canal, pausa no filme), 0,35 s depois
+  var fm = { on: false, row: 0, i: [0, 0], a: [], list: [], t: null };
+  var FM_NAV = [['live', 'Ao vivo'], ['movies', 'Filmes'], ['series', 'Séries'], ['search', 'Buscar']];
+  function fmOpen() {
+    var cur = Player.liveId ? app.idx[Player.liveId] : vb.item, base = cur && cur.t === 'ep' ? cur.series : cur, g = null;
+    if (base) g = find(base.t === 'live' ? app.groups.live : base.t === 'series' ? app.groups.series : app.groups.movies,
+      function (x) { return x.items.indexOf(base) >= 0; });
+    fm.list = g ? g.items : [];
+    fm.a = fm.list.filter(function (x) { return x !== base && okItem(x); }).slice(0, 24);
+    $('fmT').textContent = !fm.a.length ? 'Ir para' : (base.t === 'live' ? 'Canais parecidos' : 'Parecidos') + ' · ' + g.name;
+    fm.on = true; fm.row = fm.a.length ? 0 : 1; fm.i = [0, 0];
+    lb.on = vb.on = false;
+    $('player').classList.remove('show');
+    renderFm();
+  }
+  function fmClose() { fm.on = false; $('fm').classList.add('hidden'); }
+  function renderFm() {
+    var n = 6, s = Math.max(0, Math.min(fm.i[0] - 2, fm.a.length - n));
+    $('fmA').innerHTML = fm.a.slice(s, s + n).map(function (x, j) {
+      var nn = x.t === 'live' && nowNext(x), p = nn && nn.now;
+      return '<div class="fc' + (!fm.row && s + j === fm.i[0] ? ' sel' : '') + '">' + (x.l ? '<img src="' + esc(x.l) + '" alt=""/>' : '<span>' + esc(x.n.charAt(0)) + '</span>') +
+        '<b>' + esc(x.n) + '</b>' + (p ? '<small>' + esc(p.t) + '</small>' : '') + '</div>';
+    }).join('');
+    $('fmA').classList.toggle('hidden', !fm.a.length);
+    $('fmB').innerHTML = FM_NAV.map(function (v, j) {
+      return '<div class="fn' + (fm.row && j === fm.i[1] ? ' sel' : '') + '">' + icon(v[0]) + '<b>' + v[1] + '</b></div>';
+    }).join('');
+    $('fm').classList.remove('hidden');
+  }
+  function fmKey(k) {
+    if (fm.on) {
+      if (!Player.active) { fmClose(); return false; }
+      var len = fm.row ? FM_NAV.length : fm.a.length;
+      if (k === K.LEFT || k === K.RIGHT) fm.i[fm.row] = Math.max(0, Math.min(len - 1, fm.i[fm.row] + (k === K.LEFT ? -1 : 1)));
+      else if (k === K.UP || k === K.DOWN) { if (fm.a.length) fm.row = k === K.DOWN ? 1 : 0; }
+      else if (k === K.ENTER) {
+        fmClose();
+        if (fm.row) {
+          var v = FM_NAV[fm.i[1]][0];
+          Player.close();
+          if (v === 'search') openSearch('home'); else go(v);
+        } else {
+          var x = fm.a[fm.i[0]];
+          if (x.t === 'live') playLive(x, fm.list);
+          else { Player.close(); go('detail', x, true); }
+        }
+        return true;
+      }
+      else if (k === K.BACK || k === K.ESC || k === K.BACKSPACE) { fmClose(); return true; }
+      else return true;
+      renderFm();
+      return true;
+    }
+    if (k !== K.ENTER || !Player.active || lb.on || zp.on || vb.on || mn || qm.ch || chNum.digits) return false;
+    if (fm.t) { clearTimeout(fm.t); fm.t = null; fmOpen(); return true; }
+    fm.t = setTimeout(function () {
+      fm.t = null;
+      if (Player.active) zapKey(K.ENTER) || channelKey(K.ENTER) || liveBarKey(K.ENTER) || vodBarKey(K.ENTER) || Player.key(K.ENTER);
+    }, 350);
+    return true;
+  }
+  // dois cliques no vídeo (mouse, toque): o mesmo menu
+  document.addEventListener('dblclick', function (e) {
+    if (Player.active && !fm.on && e.target.closest && e.target.closest('#player')) { clearTimeout(fm.t); fm.t = null; fmOpen(); }
+  });
+
   // qualidade em uso e, se o canal tem outras, "+N" (tecla amarela troca)
   function qBadge(ch) {
     return (ch.q ? ' <em class="q">' + ch.q + '</em>' : '') + (ch.vs ? ' <em class="q more">+' + (ch.vs.length - 1) + '</em>' : '');
@@ -2710,7 +2780,7 @@ var App = (function () {
     if (ak) {
       html += '<div class="row"><h3>Ativar esta TV</h3><div class="support">' + QR.svg('https://catarinatv-9f7a3.firebaseapp.com/ativar/#k=' + ak, 260) +
         '<p>Aponte a câmera do celular para o código e digite o <b>usuário e a senha</b> da sua assinatura. ' +
-        'A TV fica ligada à sua conta e os canais aparecem em instantes.</p></div>' +
+        'Recebeu um <b>link de liberação</b>? Abra no celular e digite o código da TV:<span class="ativa-cod">' + esc(Fire.code()) + '</span></p></div>' +
         '<div class="track" data-group="at">' + btn('ativanovo', '↻&nbsp; Gerar novo código') + '</div></div>';
     } else if (remote.cliente) {
       try { localStorage.removeItem('ctv.ativa'); } catch (e) {}
@@ -2910,6 +2980,8 @@ var App = (function () {
   function leavePlayer() {
     lb.on = false;
     zapClose();
+    fmClose();
+    vb.item = null; // o menu facilitador não pode achar que um filme antigo ainda está passando
     $('shell').classList.remove('hidden');
     Player.liveId = null;
     if (app.view === 'detail') {
@@ -4062,7 +4134,7 @@ var App = (function () {
 
     Nav.onkey = function (k) {
       if (k >= K.RED && k <= K.BLUE && semCores()) store('ctv.cores', 1); // este controle tem as teclas coloridas
-      return trailerKey(k) || exitKey(k) || qmenuKey(k) || menuKey(k) || duoKey(k) || zapKey(k) || channelKey(k) || liveBarKey(k) || vodBarKey(k) || Player.key(k); };
+      return trailerKey(k) || exitKey(k) || qmenuKey(k) || menuKey(k) || duoKey(k) || fmKey(k) || zapKey(k) || channelKey(k) || liveBarKey(k) || vodBarKey(k) || Player.key(k); };
     // o selo ⚙ da qualidade abre o menu com o ponteiro do controle (ou o mouse, no PC)
     document.addEventListener('click', function (e) {
       var chip = e.target.closest && e.target.closest('.qchip'), ch = chip && app.idx[chip.getAttribute('data-ch')];

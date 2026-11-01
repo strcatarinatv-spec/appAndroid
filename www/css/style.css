@@ -119,6 +119,7 @@ html.tv { background: transparent; } /* o vídeo do AVPlay fica atrás da págin
 .support { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; margin: 22px 176px 0; }
 .support .qr { -webkit-flex-shrink: 0; flex-shrink: 0; border-radius: 12px; }
 .support p { max-width: 640px; margin-left: 36px; font-size: 28px; line-height: 1.45; color: #d0d4dc; }
+.ativa-cod { display: block; margin-top: 14px; font-size: 56px; font-weight: 800; letter-spacing: 6px; color: #fff; }
 .notice { max-width: 1100px; margin: 30px auto 10px; font-size: 40px; line-height: 1.4; white-space: pre-line; }
 .err { min-height: 36px; margin-top: 26px; font-size: 28px; color: #ff8a80; }
 .pair-url { font-size: 50px; font-weight: 700; color: #5fb0ef; margin: 12px 0 30px; }
@@ -527,6 +528,30 @@ html.tv { background: transparent; } /* o vídeo do AVPlay fica atrás da págin
 #zap .zr.tocando b:after { content: '  ● no ar'; font-size: 18px; color: #e53935; }
 #zap .zv { padding: 30px 16px; font-size: 24px; color: #a3aab8; }
 #zap .zk { position: absolute; left: 30px; right: 30px; bottom: 22px; font-size: 19px; color: #a3aab8; }
+/* menu facilitador: o mesmo vidro da lista de canais, embaixo */
+#fm {
+    position: absolute; left: 48px; right: 48px; bottom: 48px; z-index: 5; padding: 26px 34px 64px; border-radius: 34px;
+    background: -webkit-linear-gradient(top, rgba(40, 46, 62, .62), rgba(14, 16, 24, .76));
+    background: linear-gradient(180deg, rgba(40, 46, 62, .62), rgba(14, 16, 24, .76));
+    -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 0 0 1.5px rgba(255, 255, 255, .12);
+}
+#fm h4 { margin: 0 0 16px; font-size: 26px; color: #fff; }
+#fm .fm-row { display: -webkit-flex; display: flex; }
+#fmA { margin-bottom: 22px; }
+#fm .fc { width: 290px; margin-right: 18px; padding: 16px; border-radius: 22px; background: rgba(255, 255, 255, .07); }
+#fm .fc img, #fm .fc span { display: block; width: 100%; height: 130px; margin-bottom: 12px; object-fit: contain; border-radius: 12px;
+    line-height: 130px; text-align: center; font-size: 56px; font-weight: 800; color: #5b6272; }
+#fm .fc b { display: block; font-size: 24px; color: #eef0f4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#fm .fc small { display: block; font-size: 19px; color: #a3aab8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#fm .fn { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; margin-right: 18px; padding: 18px 34px;
+    border-radius: 22px; background: rgba(255, 255, 255, .07); font-size: 26px; color: #eef0f4; }
+#fm .fn svg { width: 34px; height: 34px; margin-right: 14px; }
+#fm .fc.sel, #fm .fn.sel { background: rgba(255, 255, 255, .92); box-shadow: 0 8px 24px rgba(0, 0, 0, .3); }
+#fm .fc.sel b, #fm .fn.sel b { color: #0b0d12; }
+#fm .fc.sel small { color: #4a5160; }
+#fm .fn.sel svg { stroke: #0b0d12; }
+#fm .zk { position: absolute; left: 34px; right: 34px; bottom: 22px; font-size: 19px; color: #a3aab8; }
 /* ao vivo com guia: programa, barra com horários e o próximo */
 .o-prg { font-size: 46px; font-weight: 800; letter-spacing: -1px; margin-bottom: 14px; }
 .o-time { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; font-size: 26px; color: #d0d4dc; }
