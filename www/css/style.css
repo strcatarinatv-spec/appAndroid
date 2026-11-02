@@ -400,9 +400,13 @@ html.tv { background: transparent; } /* o vídeo do AVPlay fica atrás da págin
 .tab.sel { color: #fff; background: rgba(255, 255, 255, .22); }
 .tab.focus { color: #0b0d12; background: #fff; }
 
-.card.ep { width: 400px; height: 150px; padding: 20px 24px; background: #1a1f29; }
-.card.ep b { display: block; font-size: 40px; font-weight: 800; color: #5fb0ef; }
-.card.ep span { display: block; font-size: 24px; color: #d0d4dc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card.ep { width: 440px; height: 210px; padding: 18px 24px; background: #1a1f29; }
+.card.ep b { display: block; font-size: 36px; font-weight: 800; color: #5fb0ef; }
+.card.ep b small { margin-left: 14px; font-size: 20px; font-weight: 600; color: #8b92a0; }
+.card.ep span { display: block; font-size: 24px; color: #eef0f4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card.ep p { margin: 6px 0 0; font-size: 19px; line-height: 1.35; color: #a3aab8; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.ep-desc { max-width: 1400px; min-height: 66px; margin: 14px 176px 0; font-size: 24px; line-height: 1.4; color: #d0d4dc; }
 .card.ep em { position: absolute; right: 20px; top: 22px; font-style: normal; font-size: 20px; color: #3BAA4A; }
 
 /* ---------- Ao vivo ---------- */
@@ -705,6 +709,14 @@ html.tv { background: transparent; } /* o vídeo do AVPlay fica atrás da págin
 }
 #corner.show { opacity: 1; }
 #corner.bad { border-color: #e53935; }
+/* sem internet: no lugar do aviso do canto (que desce um pouco enquanto ele aparece) */
+#net {
+    position: absolute; right: 40px; top: 36px; z-index: 95; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+    padding: 12px 24px 12px 18px; border-radius: 30px; font-size: 24px; font-weight: 700; color: #ff6b5e;
+    background: rgba(26, 12, 12, .94); border: 2px solid #e53935;
+}
+#net svg { width: 34px; height: 34px; margin-right: 12px; }
+#net:not(.hidden) + #corner { top: 110px; }
 #chNum {
     position: absolute; right: 100px; top: 170px; z-index: 45; min-width: 300px; padding: 26px 40px; border-radius: 22px;
     text-align: right; background: rgba(11, 13, 18, .92); border: 2px solid #343840;

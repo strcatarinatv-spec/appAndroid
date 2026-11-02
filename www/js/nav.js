@@ -75,6 +75,10 @@ var Nav = (function () {
       if (score < bestScore) { bestScore = score; best = el; }
     }
     if (!best) return;
+    // ▶ no fim de uma fileira (temporadas, episódios, cards): fica onde está, não pula para a fileira de baixo
+    // (◀ no começo continua saindo, para o menu)
+    var tr = cur.closest('.track');
+    if (dir === 'right' && tr && !tr.contains(best)) return;
 
     // entrando em outro grupo: volta para onde estava nele
     var g = group(best);

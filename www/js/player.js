@@ -13,7 +13,7 @@ var Player = (function () {
   var p = { active: false };
   var o = null, gen = 0, pos = 0, dur = 0, paused = false;
   var seekTarget = null, seekTimer, osdTimer, lastSave = 0, lastStep = 0, step = 10000;
-  var retries = 0, retryTimer, connectedAt = 0, MAX_RETRIES = 3, trocas = 0;
+  var retries = 0, retryTimer, connectedAt = 0, MAX_RETRIES = 3, trocas = 0, vodTries = 0;
   var hls = null; // só no navegador (testes): o Chrome não toca HLS nativamente
 
   function avplay() { return window.webapis && webapis.avplay; }
@@ -47,18 +47,51 @@ var Player = (function () {
       retryTimer = setTimeout(function () { if (de === gen) start(); }, 1500);
       return;
     }
-    if (!o.live) return error(text);
+    if (window.Rede) Rede.testar(); // caiu: confere se é a internet (Wi-Fi vermelho no canto)
+    // sem internet: não adianta insistir; espera a conexão voltar e retoma na hora (o filme, de onde parou)
+    if (window.Rede && !Rede.ok) {
+      stopMedia();
+      spin(true);
+      message('Sem internet. O ' + (o.live ? 'canal' : 'vídeo') + ' volta sozinho quando a conexão voltar');
+      showOsd(true);
+      var w = gen;
+      Rede.quando(function () { if (w === gen && p.active) retomar(); });
+      return;
+    }
+    // filme ou episódio: tenta de novo do ponto onde estava (queda rápida da conexão); depois de 3, desiste
+    if (!o.live) {
+      if (vodTries >= 3) return error(text);
+      vodTries++;
+      stopMedia();
+      spin(true);
+      message('A conexão falhou, tentando de novo... (' + vodTries + '/3)');
+      var v = gen;
+      retryTimer = setTimeout(function () { if (v === gen) retomar(); }, 3000 * vodTries);
+      return;
+    }
     if (connectedAt && Date.now() - connectedAt > 30000) retries = 0; // estava tocando bem: queda nova
-    if (retries >= MAX_RETRIES) return o.onstall && o.onstall() ? null : error(text); // antes do erro: qualidade menor
     if (retries === 1 && o.onstall && o.onstall()) return; // caiu 2× seguidas: tenta numa qualidade menor
+    if (retries === MAX_RETRIES && o.onstall && o.onstall()) return; // antes de insistir: qualidade menor
     retries++;
     connectedAt = 0;
     stopMedia();
     spin(true);
-    message('Sinal perdido, reconectando... (' + retries + '/' + MAX_RETRIES + ')');
+    // ao vivo não desiste: depois das 3 primeiras, continua tentando a cada 10 s até o sinal voltar (o motivo de
+    // verdade, se o fornecedor disser, aparece junto)
+    var insiste = retries > MAX_RETRIES;
+    message(insiste ? 'Sem sinal do canal. Tentando de novo a cada 10 s...' : 'Sinal perdido, reconectando... (' + retries + '/' + MAX_RETRIES + ')');
     showOsd(true);
     var again = gen;
-    retryTimer = setTimeout(function () { if (again === gen) start(); }, 2000 * retries);
+    if (insiste && retries === MAX_RETRIES + 1 && o.why) o.why(function (t) { if (t && again === gen && p.active) message(t + ' Tentando de novo a cada 10 s...'); });
+    retryTimer = setTimeout(function () { if (again === gen) start(); }, insiste ? 10000 : 2000 * retries);
+  }
+
+  // volta a tocar o mesmo conteúdo: o filme do ponto onde estava, o canal do agora
+  function retomar() {
+    if (!o) return;
+    if (!o.live && pos > 0) o.start = pos;
+    spin(true);
+    start();
   }
 
   // carregando de novo depois de já tocar: 3× em 1 min = internet não aguenta esta qualidade (o app desce uma)
@@ -394,7 +427,7 @@ var Player = (function () {
     stopMedia();
     o = opts;
     pos = 0; dur = 0; paused = false; seekTarget = null; lastSave = Date.now();
-    retries = 0; connectedAt = 0; stalls = []; trocas = 0;
+    retries = 0; connectedAt = 0; stalls = []; trocas = 0; vodTries = 0;
     p.active = true;
     $('player').classList.remove('hidden');
     $('pTitle').textContent = o.title || '';

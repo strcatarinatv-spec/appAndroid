@@ -119,8 +119,10 @@ var Xtream = (function () {
       Object.keys(all).forEach(function (k) {
         (Array.isArray(all[k]) ? all[k] : []).forEach(function (ep) {
           var u = base + ep.id + '.' + (ep.container_extension || 'mp4'), info = ep.info || {};
+          // p: sinopse do episódio; dur: duração ("45 min"), quando o fornecedor manda
+          var hms = /^(\d+):(\d+):\d+$/.exec(str(info.duration)), dur = hms ? (+hms[1] * 60 + +hms[2]) + ' min' : '';
           out.push({ id: M3U.hash(u), u: u, l: str(info.movie_image) || s.l, s: +ep.season || +k || 1, e: +ep.episode_num || out.length + 1,
-                     n: str(ep.title).replace(/^.*?S\d+\s*E\d+\s*[-–:]?\s*/i, '') });
+                     n: str(ep.title).replace(/^.*?S\d+\s*E\d+\s*[-–:]?\s*/i, ''), p: str(info.plot).slice(0, 600), dur: dur });
         });
       });
       out.sort(function (a, b) { return a.s - b.s || a.e - b.e; });

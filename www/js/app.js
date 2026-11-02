@@ -99,6 +99,31 @@ var App = (function () {
 
   function stored(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
 
+  /* ---------- Internet: Wi-Fi vermelho no canto quando cai ---------- */
+  // O aparelho avisa (offline/online) e, quando o vídeo cai, o app confere de verdade pedindo um ícone pequeno do Google
+  // (o Wi-Fi pode estar ligado sem internet). Sem internet: confere de novo a cada 5 s; voltou, some o aviso e quem
+  // estava esperando (o player) retoma na hora. window.Rede: { ok, testar(), quando(fn) }
+  var Rede = window.Rede = { ok: true, fila: [] }, redeT = null, redeTestando = false;
+  Rede.quando = function (fn) { Rede.fila.push(fn); };
+  function redeMuda(ok) {
+    if (!ok) { clearTimeout(redeT); redeT = setTimeout(Rede.testar, 5000); }
+    if (ok === Rede.ok) return;
+    Rede.ok = ok;
+    $('net').classList.toggle('hidden', ok);
+    if (ok) { var f = Rede.fila; Rede.fila = []; f.forEach(function (fn) { try { fn(); } catch (e) {} }); }
+  }
+  Rede.testar = function () {
+    if (redeTestando) return;
+    redeTestando = true;
+    var img = new Image(), fim = function (ok) { if (!redeTestando) return; redeTestando = false; clearTimeout(t); redeMuda(ok); };
+    var t = setTimeout(function () { fim(false); }, 6000);
+    img.onload = function () { fim(true); };
+    img.onerror = function () { fim(false); };
+    img.src = 'https://www.google.com/favicon.ico?r=' + Date.now();
+  };
+  window.addEventListener('offline', function () { redeMuda(false); });
+  window.addEventListener('online', Rede.testar);
+
   function weather() {
     var loc = stored('ctv.loc');
     if (loc && Date.now() - loc.at < 24 * 3600e3) return forecast(loc);
@@ -1411,7 +1436,7 @@ var App = (function () {
           return '<div class="tab f' + (s === detail.season ? ' sel' : '') + '" data-act="season" data-s="' + s + '">Temporada ' + s + '</div>';
         }).join('') + '</div></div>';
       }
-      out += '<div class="row eps"><h3>Episódios</h3><div class="track" data-group="e" id="epTrack"></div></div>';
+      out += '<div class="row eps"><h3>Episódios</h3><div class="track" data-group="e" id="epTrack"></div><p class="ep-desc" id="epDesc"></p></div>';
     }
     var v = vs('detail');
     v.innerHTML = out;
@@ -1433,17 +1458,43 @@ var App = (function () {
       (m.onde && m.onde.length ? '<p class="onde"><b>Também em</b>' + m.onde.map(esc).join(' · ') + ' <small>dados JustWatch</small></p>' : '');
   }
 
+  // episódios da temporada: número, duração, título e o começo da sinopse no card; a sinopse inteira do que está em
+  // foco aparece embaixo da fileira (onFocus → epDesc)
   function renderEpisodes(s) {
-    var track = $('epTrack');
+    var track = $('epTrack'), foco = Nav.cur && track.contains(Nav.cur) && Nav.cur.getAttribute('data-id');
     track.innerHTML = s.eps.filter(function (ep) { return ep.s === detail.season; }).map(function (ep) {
       var pct = progressOf(ep), h = histFor(ep.id);
       return '<div class="card ep f" data-act="ep" data-id="' + ep.id + '">' +
-        '<b>E' + ep.e + '</b><span>' + esc(ep.n || s.n) + '</span>' +
+        '<b>E' + ep.e + (ep.dur ? '<small>' + esc(ep.dur) + '</small>' : '') + '</b><span>' + esc(ep.n || s.n) + '</span>' +
+        (ep.p ? '<p>' + esc(ep.p) + '</p>' : '') +
         (h && !resumable(h) ? '<em>✓ visto</em>' : '') +
         (pct ? '<div class="prog"><i style="width:' + pct + '%"></i></div>' : '') + '</div>';
     }).join('');
-    track.scrollLeft = 0;
-    track._last = null;
+    if (foco && track.querySelector('[data-id="' + foco + '"]')) Nav.focus(track.querySelector('[data-id="' + foco + '"]'));
+    else { track.scrollLeft = 0; track._last = null; }
+    epsInfo(s, detail.season);
+  }
+
+  // sinopse dos episódios: a do fornecedor (API Xtream) e, sem ela, a do TMDB (a temporada inteira numa consulta)
+  var epTm = {};
+  function epsInfo(s, season) {
+    var k = s.id + ':' + season, eps = s.eps.filter(function (e) { return e.s === season; });
+    if (epTm[k] || !remote.tmdb || !eps.some(function (e) { return !e.p; })) return;
+    epTm[k] = 1;
+    getMeta(s).then(function (m) {
+      if (!m || !m.tid) return;
+      return tmdb('/tv/' + m.tid + '/season/' + season).then(function (d) {
+        if (!d || !d.episodes) return;
+        d.episodes.forEach(function (x) {
+          var ep = find(eps, function (e) { return e.e === x.episode_number; });
+          if (!ep) return;
+          if (!ep.p && x.overview) ep.p = String(x.overview).slice(0, 600);
+          if (x.name && (!ep.n || /^(epis[oó]dio|episode)\s*\d+$/i.test(ep.n) || ep.n === s.n)) ep.n = x.name;
+          if (!ep.dur && x.runtime) ep.dur = x.runtime + ' min';
+        });
+        if (app.view === 'detail' && app.arg === s && detail.season === season && !Player.active) renderEpisodes(s);
+      });
+    }).then(null, function () {});
   }
 
   function detailAction(el) {
@@ -2036,7 +2087,9 @@ var App = (function () {
     });
   }
 
-  function tmFresh() { return !!tmLists && Date.now() - (tmLists.at || 0) < 7 * 864e5; }
+  // TM_V: sobe quando as listas mudam de formato (2: novidades por streaming), para a TV buscar de novo sem esperar a semana
+  var TM_V = 2;
+  function tmFresh() { return !!tmLists && tmLists.v === TM_V && Date.now() - (tmLists.at || 0) < 7 * 864e5; }
   function loadTmdbLists(force) {
     // listas do TMDB (em alta, populares): uma vez por semana basta (eram todo dia, ~75 consultas por TV)
     if (!remote.tmdb || tmLoading || (!force && tmFresh())) return Promise.resolve();
@@ -2048,7 +2101,7 @@ var App = (function () {
       if (!r[0] && !r[1]) { syncErr.tmdb = 'O TMDB não respondeu (confira o token)'; return reportSync(); }
       syncErr.tmdb = '';
       reportSync();
-      tmLists = { day: today(), at: Date.now(), trend: titles(r[0]), popMovies: titles(r[1], r[2]), popSeries: titles(r[3], r[4]),
+      tmLists = { v: TM_V, day: today(), at: Date.now(), trend: titles(r[0]), popMovies: titles(r[1], r[2]), popSeries: titles(r[3], r[4]),
                   movies: titles(r[5], r[6]), series: titles(r[7], r[8]) };
       try { localStorage.setItem('ctv.tmdb.lists', JSON.stringify(tmLists)); } catch (e) {}
       app.dirty.home = 1;
@@ -2071,8 +2124,9 @@ var App = (function () {
       ['Nacionais', 'BR', /nacion|brasil/]]
   };
   // serviços de streaming: [nome, id do serviço no TMDB (Brasil), palavras no nome do grupo da lista ("Séries | Netflix")]
-  var SVC = [['Netflix', 8, /netflix/], ['Prime Video', 119, /prime|amazon/], ['Disney+', 337, /disney/], ['Max', 1899, /\bhbo\b|\bmax\b/],
-    ['Globoplay', 307, /globoplay/], ['Apple TV+', 350, /apple/], ['Paramount+', 531, /paramount/]];
+  // [nome, id do serviço no TMDB (Brasil), palavras no grupo da lista, "na"/"no" para "Novidades na Netflix"]
+  var SVC = [['Netflix', 8, /netflix/, 'na'], ['Prime Video', 119, /prime|amazon/, 'no'], ['Disney+', 337, /disney/, 'no'], ['Max', 1899, /\bhbo\b|\bmax\b/, 'na'],
+    ['Globoplay', 307, /globoplay/, 'no'], ['Apple TV+', 350, /apple/, 'no'], ['Paramount+', 531, /paramount/, 'no']];
 
   // Top 10 do dia, lançamentos, os populares de cada gênero (2 páginas) e de cada serviço (1 página): ~65 consultas,
   // uma vez por dia, depois das listas principais (o Início não espera)
@@ -2087,8 +2141,14 @@ var App = (function () {
           jobs.push(['g:' + type + ':' + i, '/discover/' + (type === 'movie' ? 'movie' : 'tv'), q]);
         });
       });
+      // por serviço: as novidades (mais novos primeiro, só os que já estrearam e com votos, para não vir título vazio), 2 páginas
+      var hoje = new Date().toISOString().slice(0, 10), dt = type === 'movie' ? 'primary_release_date' : 'first_air_date';
       SVC.forEach(function (s, i) {
-        jobs.push(['s:' + type + ':' + i, '/discover/' + (type === 'movie' ? 'movie' : 'tv'), { sort_by: 'popularity.desc', include_adult: 'false', with_watch_providers: s[1], watch_region: 'BR' }]);
+        [1, 2].forEach(function (page) {
+          var q = { sort_by: dt + '.desc', include_adult: 'false', with_watch_providers: s[1], watch_region: 'BR', 'vote_count.gte': 15, page: page };
+          q[dt + '.lte'] = hoje;
+          jobs.push(['s:' + type + ':' + i, '/discover/' + (type === 'movie' ? 'movie' : 'tv'), q]);
+        });
       });
     });
     return jobs;
@@ -2300,11 +2360,17 @@ var App = (function () {
     if (feat) rows.push({ title: '', btns: vodButtons(feat, gens) });
     if (cont.length) rows.push({ title: 'Continuar assistindo', items: cont, kind: 'poster', noMore: true });
     if (top10.length) rows.push({ title: 'Top 10 ' + (type === 'movie' ? 'filmes' : 'séries') + ' hoje', items: top10, kind: 'top', noMore: true });
+    // novidades de cada streaming (Netflix, Prime Video…) logo no começo: os mais novos primeiro, só com 6 ou mais títulos
+    vodServices(type).forEach(function (s, i) {
+      if (s.items.length < 6) return;
+      var novos = s.items.map(function (x, n) { return { x: x, n: n }; })
+        .sort(function (a, b) { return (yearOf(b.x) || 0) - (yearOf(a.x) || 0) || a.n - b.n; }).map(function (o) { return o.x; });
+      var d = find(SVC, function (v) { return v[0] === s.name; });
+      rows.push({ title: 'Novidades ' + (d ? d[3] : 'no') + ' ' + s.name, items: novos, kind: 'poster', count: true });
+    });
     if (rel.length) rows.push({ title: type === 'movie' ? 'Lançamentos' : 'Episódios novos e no ar', items: rel, kind: 'poster' });
     if (rec && rec.items.length) rows.push({ title: 'Porque você assistiu ' + cleanTitle(rec.src.n).title, items: rec.items, kind: 'poster' });
     if (pop.length) rows.push({ title: 'Populares', items: pop, kind: 'poster' });
-    // por serviço de streaming (Netflix, Prime Video…), como no Max IPTV: só com 6 ou mais títulos
-    vodServices(type).forEach(function (s) { if (s.items.length >= 6) rows.push({ title: s.name, items: s.items, kind: 'poster', count: true }); });
     var genRows = gens.filter(function (g) { return g.items.length >= 6; }).map(function (g) { return { title: g.name, items: g.items, kind: 'poster', count: true }; });
     rows = rows.concat(genRows.slice(0, 4));
     if (best.length) rows.push({ title: 'Mais bem avaliados', items: best, kind: 'poster' });
@@ -2563,8 +2629,10 @@ var App = (function () {
     cb = function (m) { why = { at: Date.now(), msg: m }; done(m); };
     Xtream.info(c).then(function (i) {
       if (i.status && !/^active$/i.test(i.status)) return cb('O fornecedor diz que a assinatura está ' + (/expired/i.test(i.status) ? 'vencida' : 'bloqueada') + '. Fale com o atendimento.');
-      if (i.telas && i.ativas >= i.telas) return cb('A assinatura já está em uso em ' + (i.telas > 1 ? i.ativas + ' aparelhos' : 'outro aparelho') +
-        ' (o plano permite ' + i.telas + (i.telas > 1 ? ' telas' : ' tela') + ' ao mesmo tempo). Feche no outro aparelho ou espere 1 minuto e tente de novo.');
+      // o fornecedor conta também as conexões que esta TV acabou de fechar (ele demora a soltar): não dá para afirmar
+      // que é outro aparelho
+      if (i.telas && i.ativas >= i.telas) return cb('O fornecedor está contando ' + i.ativas + (i.ativas > 1 ? ' conexões abertas' : ' conexão aberta') +
+        ' nesta assinatura (o plano permite ' + i.telas + ' ao mesmo tempo). Pode ser outro aparelho assistindo ou esta TV ainda presa na tentativa anterior: espere 1 minuto que ela solta.');
       cb('');
     }, function () { cb(''); });
   }
@@ -3399,6 +3467,12 @@ var App = (function () {
         for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('sel', tabs[i] === el);
         renderEpisodes(app.arg);
       }
+    }
+
+    // episódio em foco: a sinopse inteira embaixo da fileira
+    if (app.view === 'detail' && $('epDesc')) {
+      var ep = el.getAttribute('data-act') === 'ep' && app.idx[el.getAttribute('data-id')];
+      $('epDesc').textContent = ep ? (ep.p || 'Sem sinopse para este episódio.') : '';
     }
 
     var info = itemOf(el);

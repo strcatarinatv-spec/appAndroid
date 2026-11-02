@@ -32,6 +32,9 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.text.CueGroup
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -293,6 +296,19 @@ class MainActivity : Activity() {
         }
     }
 
+    // O fornecedor recusa (403, 429, 509…) quando ainda conta a conexão de antes: a assinatura tem poucas telas e o player
+    // abre uma conexão nova a cada busca no arquivo (MKV lê o índice no fim, voltar e avançar). Em vez de dar erro (e o
+    // app dizer "em uso em outro aparelho"), espera a conexão velha cair e tenta de novo: 2 s, 4 s, 6 s… até 6 vezes
+    private val insistir = object : DefaultLoadErrorHandlingPolicy() {
+        override fun getRetryDelayMsFor(info: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
+            val e = info.exception
+            if (e is HttpDataSource.InvalidResponseCodeException && e.responseCode in RECUSA && info.errorCount <= 6) return 2000L * info.errorCount
+            return super.getRetryDelayMsFor(info)
+        }
+        override fun getMinimumLoadableRetryCount(dataType: Int) = 6
+    }
+    private val RECUSA = setOf(401, 403, 406, 429, 456, 458, 503, 509, 551)
+
     inner class Av(val id: Int) : Player.Listener {
         var exo: ExoPlayer? = null
         private var pronto = false
@@ -315,7 +331,7 @@ class MainActivity : Activity() {
             fechar()
             val http = DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true)
                 .setConnectTimeoutMs(15000).setReadTimeoutMs(20000)
-            exo = ExoPlayer.Builder(this@MainActivity).setMediaSourceFactory(DefaultMediaSourceFactory(http)).build().also {
+            exo = ExoPlayer.Builder(this@MainActivity).setMediaSourceFactory(DefaultMediaSourceFactory(http).setLoadErrorHandlingPolicy(insistir)).build().also {
                 it.addListener(this)
                 it.volume = volume
                 it.trackSelectionParameters = it.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, mudo).build()
