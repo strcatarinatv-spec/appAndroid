@@ -3493,7 +3493,16 @@ var App = (function () {
     try { info.model = webapis.productinfo.getRealModel(); } catch (e) { info.model = window.webapis ? 'Samsung TV' : 'Navegador'; }
     var mac = tvMac();
     if (mac && window.webapis) info.mac = mac;
+    var prova = tvProva();
+    if (prova) info.prova = prova;
     return info;
+  }
+
+  // identidade secreta do aparelho (nunca aparece na tela, só a TV e o portal leem): é com ela que o servidor
+  // reconhece a mesma TV depois de reinstalar o app. O MAC aparece na tela e não basta (dá para copiar)
+  function tvProva() {
+    try { if (window.AndroidAv && AndroidAv.prova) return AndroidAv.prova(); } catch (e) {}
+    try { return String(webapis.productinfo.getDuid() || '').slice(0, 128); } catch (e) { return ''; }
   }
 
   function vodOrg(o) {

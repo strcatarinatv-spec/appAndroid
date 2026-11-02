@@ -143,6 +143,11 @@ class MainActivity : Activity() {
         return Triple(if (a === apkDela) "apk" else "www", a.getString("browser_download_url"), a.getLong("id").toString())
     }
 
+    // de onde o app aceita se atualizar: o código novo roda com acesso ao player e ao instalador, então só das fontes
+    // da Catarina TV (um link qualquer, mesmo vindo de uma tela comprometida, não troca o app)
+    private val FONTES = listOf("https://github.com/strcatarinatv-spec/appAndroid/", "https://catarinatv-9f7a3.web.app/", "https://catarinatv-9f7a3.firebaseapp.com/")
+    private fun confiavel(u: String) = FONTES.any { u.startsWith(it) }
+
     // resposta ao app (só quando o portal pediu): igual, nova, apk ou erro
     private fun fim(porPortal: Boolean, s: String, msg: String = "") {
         if (porPortal) ui.post { web.evaluateJavascript("window.__versao&&__versao('$s',${JSONObject.quote(msg)})", null) }
@@ -155,7 +160,9 @@ class MainActivity : Activity() {
         }
         thread {
             try {
+                if (!confiavel(link)) return@thread fim(porPortal, "erro", "link não permitido: só o GitHub e o portal da Catarina TV")
                 val (tipo, url, id) = resolver(link) ?: return@thread fim(porPortal, "erro", "link não reconhecido (use https: www.zip, .apk ou o Releases do GitHub)")
+                if (!confiavel(url)) return@thread fim(porPortal, "erro", "link não permitido: só o GitHub e o portal da Catarina TV")
                 if (tipo == "apk") {
                     val f = File(cacheDir, "novo.apk")
                     abrir(url).use { i -> f.outputStream().use { i.copyTo(it) } }
@@ -414,6 +421,12 @@ class MainActivity : Activity() {
         @JavascriptInterface fun versao(): String = pacote.versionName ?: ""
         // o Android não deixa o app ler o MAC de verdade: um "MAC" fixo tirado do ID do aparelho (não muda ao reinstalar,
         // com a mesma chave do APK), para o portal reconhecer sempre a mesma TV e o cadastro do cliente valer por ele
+        // identidade secreta do aparelho (outra conta sobre o mesmo ID, que não aparece na tela): o servidor só junta a
+        // TV reinstalada com a antiga quando esta prova é igual (o MAC, que aparece na tela, não basta)
+        @JavascriptInterface fun prova(): String {
+            val id = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: return ""
+            return MessageDigest.getInstance("SHA-256").digest("catarinatv-prova:$id".toByteArray()).joinToString("") { "%02x".format(it) }
+        }
         @JavascriptInterface fun mac(): String {
             val id = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: return ""
             val h = MessageDigest.getInstance("SHA-256").digest(id.toByteArray())
