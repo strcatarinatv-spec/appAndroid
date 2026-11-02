@@ -119,10 +119,14 @@ var Xtream = (function () {
       Object.keys(all).forEach(function (k) {
         (Array.isArray(all[k]) ? all[k] : []).forEach(function (ep) {
           var u = base + ep.id + '.' + (ep.container_extension || 'mp4'), info = ep.info || {};
-          // p: sinopse do episódio; dur: duração ("45 min"), quando o fornecedor manda
-          var hms = /^(\d+):(\d+):\d+$/.exec(str(info.duration)), dur = hms ? (+hms[1] * 60 + +hms[2]) + ' min' : '';
-          out.push({ id: M3U.hash(u), u: u, l: str(info.movie_image) || s.l, s: +ep.season || +k || 1, e: +ep.episode_num || out.length + 1,
-                     n: str(ep.title).replace(/^.*?S\d+\s*E\d+\s*[-–:]?\s*/i, ''), p: str(info.plot).slice(0, 600), dur: dur });
+          // p: sinopse do episódio; dur: duração ("45 min"); d: data em que foi ao ar; r: nota; im: imagem do próprio
+          // episódio (l cai na capa da série) — o que o fornecedor mandar, cada um com o nome que usar
+          var hms = /^(\d+):(\d+):\d+$/.exec(str(info.duration)), secs = +info.duration_secs || 0;
+          var dur = secs ? Math.round(secs / 60) + ' min' : hms ? (+hms[1] * 60 + +hms[2]) + ' min' : '';
+          var im = str(info.movie_image || info.cover_big || info.still_path), nota = +info.rating || 0;
+          out.push({ id: M3U.hash(u), u: u, l: im || s.l, im: /^https?:\/\//.test(im) ? im : '', s: +ep.season || +k || 1, e: +ep.episode_num || out.length + 1,
+                     n: str(ep.title).replace(/^.*?S\d+\s*E\d+\s*[-–:]?\s*/i, ''), p: str(info.plot || info.description || info.overview).slice(0, 600), dur: dur,
+                     d: str(info.releasedate || info.air_date || info.releaseDate).slice(0, 10), r: nota > 0 && nota <= 10 ? Math.round(nota * 10) / 10 : 0 });
         });
       });
       out.sort(function (a, b) { return a.s - b.s || a.e - b.e; });

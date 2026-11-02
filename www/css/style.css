@@ -408,6 +408,13 @@ html.tv { background: transparent; } /* o vídeo do AVPlay fica atrás da págin
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .ep-desc { max-width: 1400px; min-height: 66px; margin: 14px 176px 0; font-size: 24px; line-height: 1.4; color: #d0d4dc; }
 .card.ep em { position: absolute; right: 20px; top: 22px; font-style: normal; font-size: 20px; color: #3BAA4A; }
+/* temporada com imagem dos episódios: a imagem em cima, o texto embaixo */
+.card.ep.im { height: 400px; padding: 0 0 14px; }
+.card.ep.im img, .card.ep.im .eim { position: static; display: block; width: 440px; height: 220px; object-fit: cover; background: #10141b; margin-bottom: 10px; }
+.card.ep.im b, .card.ep.im span, .card.ep.im p { padding: 0 22px; }
+.card.ep.im b { font-size: 30px; }
+.card.ep.im p { -webkit-line-clamp: 2; }
+.card.ep.im em { top: 232px; }
 
 /* ---------- Ao vivo ---------- */
 

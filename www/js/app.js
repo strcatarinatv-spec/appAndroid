@@ -1,7 +1,7 @@
 /* cTV — telas, catálogo e integração com a nuvem */
 var App = (function () {
   var K = Nav.K;
-  var VERSION = '1.9.0'; // a mesma de config.xml; aparece no painel
+  var VERSION = '1.10.0'; // a mesma de config.xml; aparece no painel
   var ROW_MAX = 30, GRID_PAGE = 60, LIST_ROWS = 11;
   // modo aberto: o app já vem com esta lista (dentro do pacote) e não precisa de servidor nem conta.
   // Só sinais que as próprias emissoras publicam abertamente; ver lista-padrao.m3u
@@ -669,6 +669,7 @@ var App = (function () {
   // atualização foi pedida (portal ou OK 8× no logo)
   function reportChannels(force) {
     if (!Fire.enabled || !Fire.uid) return Promise.reject(new Error('Sem conexão com o portal'));
+    reportVod(force);
     var all = app.allLive || app.cat.live; // inclusive os ocultos pelo portal, para ele poder mostrar de novo
     // só quando a lista mudou (antes reenviava todo dia, até 800 KB por TV)
     var sig = Fire.uid + '|' + all.length + '|' + M3U.hash(all.map(function (c) { return c.n; }).join('|'));
@@ -692,6 +693,24 @@ var App = (function () {
       localStorage.setItem('ctv.canaisAt', Date.now()); // o portal vê pelo sync que chegaram canais novos
       reportSync();
       return all.length;
+    });
+  }
+
+  // Os títulos de filmes e séries por grupo da lista (state/filmes e state/series), para a aba Filmes e séries do
+  // portal: só os nomes, nunca os links. Grava quando mudam; lista enorme perde o fim de cada grupo (cortado: o portal avisa)
+  function reportVod(force) {
+    [['filmes', app.cat.movies], ['series', app.cat.series]].forEach(function (p) {
+      var gs = groupBy(p[1]).map(function (g) { return { n: g.name.slice(0, 60), t: g.items.map(function (x) { return x.n.slice(0, 60); }) }; });
+      var txt = JSON.stringify(gs), sig = Fire.uid + '|' + txt.length + '|' + M3U.hash(txt), k = 'ctv.vodSig.' + p[0], cortado = false;
+      if (!force && localStorage.getItem(k) === sig) return;
+      // o documento tem limite de 1 MB (em bytes; acento conta 2): até 800 mil letras
+      while (txt.length > 800000) {
+        var r = 800000 / txt.length * 0.95;
+        gs.forEach(function (g) { g.t = g.t.slice(0, Math.floor(g.t.length * r)); });
+        txt = JSON.stringify(gs); cortado = true;
+      }
+      Fire.set('tvs/' + Fire.uid + '/state/' + p[0], { at: Date.now(), cortado: cortado, grupos: gs })
+        .then(function () { localStorage.setItem(k, sig); }, function () {});
     });
   }
 
@@ -1458,14 +1477,17 @@ var App = (function () {
       (m.onde && m.onde.length ? '<p class="onde"><b>Também em</b>' + m.onde.map(esc).join(' · ') + ' <small>dados JustWatch</small></p>' : '');
   }
 
-  // episódios da temporada: número, duração, título e o começo da sinopse no card; a sinopse inteira do que está em
-  // foco aparece embaixo da fileira (onFocus → epDesc)
+  // episódios da temporada: imagem do episódio (quando a temporada tem), número, duração, data, nota, título e o começo
+  // da sinopse no card; a sinopse inteira do que está em foco aparece embaixo da fileira (onFocus → epDesc)
   function renderEpisodes(s) {
     var track = $('epTrack'), foco = Nav.cur && track.contains(Nav.cur) && Nav.cur.getAttribute('data-id');
-    track.innerHTML = s.eps.filter(function (ep) { return ep.s === detail.season; }).map(function (ep) {
-      var pct = progressOf(ep), h = histFor(ep.id);
-      return '<div class="card ep f" data-act="ep" data-id="' + ep.id + '">' +
-        '<b>E' + ep.e + (ep.dur ? '<small>' + esc(ep.dur) + '</small>' : '') + '</b><span>' + esc(ep.n || s.n) + '</span>' +
+    var eps = s.eps.filter(function (ep) { return ep.s === detail.season; }), comIm = eps.some(function (ep) { return ep.im; });
+    track.innerHTML = eps.map(function (ep) {
+      var pct = progressOf(ep), h = histFor(ep.id), d = /^(\d{4})-(\d\d)-(\d\d)/.exec(ep.d || '');
+      var info = [ep.dur, d && d[3] + '/' + d[2] + '/' + d[1], ep.r && '★ ' + String(ep.r).replace('.', ',')].filter(Boolean).join(' · ');
+      return '<div class="card ep f' + (comIm ? ' im' : '') + '" data-act="ep" data-id="' + ep.id + '">' +
+        (comIm ? (ep.im ? '<img src="' + esc(ep.im) + '" alt="">' : '<i class="eim"></i>') : '') +
+        '<b>E' + ep.e + (info ? '<small>' + esc(info) + '</small>' : '') + '</b><span>' + esc(ep.n || s.n) + '</span>' +
         (ep.p ? '<p>' + esc(ep.p) + '</p>' : '') +
         (h && !resumable(h) ? '<em>✓ visto</em>' : '') +
         (pct ? '<div class="prog"><i style="width:' + pct + '%"></i></div>' : '') + '</div>';
@@ -1475,11 +1497,12 @@ var App = (function () {
     epsInfo(s, detail.season);
   }
 
-  // sinopse dos episódios: a do fornecedor (API Xtream) e, sem ela, a do TMDB (a temporada inteira numa consulta)
+  // sinopse, imagem, data e nota dos episódios: as do fornecedor (API Xtream) e, faltando, as do TMDB (a temporada
+  // inteira numa consulta)
   var epTm = {};
   function epsInfo(s, season) {
     var k = s.id + ':' + season, eps = s.eps.filter(function (e) { return e.s === season; });
-    if (epTm[k] || !remote.tmdb || !eps.some(function (e) { return !e.p; })) return;
+    if (epTm[k] || !remote.tmdb || !eps.some(function (e) { return !e.p || !e.im || !e.d; })) return;
     epTm[k] = 1;
     getMeta(s).then(function (m) {
       if (!m || !m.tid) return;
@@ -1491,6 +1514,9 @@ var App = (function () {
           if (!ep.p && x.overview) ep.p = String(x.overview).slice(0, 600);
           if (x.name && (!ep.n || /^(epis[oó]dio|episode)\s*\d+$/i.test(ep.n) || ep.n === s.n)) ep.n = x.name;
           if (!ep.dur && x.runtime) ep.dur = x.runtime + ' min';
+          if (!ep.im && x.still_path) ep.im = IMG + 'w300' + x.still_path;
+          if (!ep.d && x.air_date) ep.d = String(x.air_date).slice(0, 10);
+          if (!ep.r && x.vote_average > 0) ep.r = Math.round(x.vote_average * 10) / 10;
         });
         if (app.view === 'detail' && app.arg === s && detail.season === season && !Player.active) renderEpisodes(s);
       });
