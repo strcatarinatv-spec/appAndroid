@@ -1,7 +1,7 @@
 /* cTV — telas, catálogo e integração com a nuvem */
 var App = (function () {
   var K = Nav.K;
-  var VERSION = '1.10.1'; // a mesma de config.xml; aparece no painel
+  var VERSION = '1.10.2'; // a mesma de config.xml; aparece no painel
   var ROW_MAX = 30, GRID_PAGE = 60, LIST_ROWS = 11;
   // modo aberto: o app já vem com esta lista (dentro do pacote) e não precisa de servidor nem conta.
   // Só sinais que as próprias emissoras publicam abertamente; ver lista-padrao.m3u
@@ -559,7 +559,7 @@ var App = (function () {
     setTimeout(checkTelas, 500);
   }
 
-  // quantas telas a assinatura aceita (menos de 3 desliga a prévia; 1 também a tela dupla). Uma pergunta por dia: cada uma é um acesso no painel do fornecedor
+  // quantas telas a assinatura aceita (1 desliga a tela dupla; a prévia e a tela dupla também dependem da lista estar livre, checkUso). Uma pergunta por dia: cada uma é um acesso no painel do fornecedor
   function checkTelas() {
     var c = activePlaylist() && Xtream.creds(activePlaylist().url), cat = app.cat, u = c && M3U.hash(c.m3u), t = stored('ctv.telas');
     if (!c) return;
@@ -2634,15 +2634,46 @@ var App = (function () {
       '<em>' + (!previewOn() ? 'Aperte OK para assistir' : mine && pv.err ? 'Sem prévia deste canal' : 'Sintonizando…') + '</em></div>';
   }
 
-  // assinatura de 1 tela: sem tela dupla (ela usa dois acessos ao mesmo tempo; quando um lado não abre, ela avisa)
-  function duoOk() { return !(app.cat && app.cat.telas === 1); }
-  // prévia: só com internet medida que aguenta com folga (abrir um canal a cada foco travava as mais fracas); sem medida, mede.
-  // E só com 3 telas ou mais: cada canal da prévia fica contando como conexão no fornecedor por ~1 min depois de fechado,
-  // e numa assinatura de 2 telas dividida por duas TVs isso tomava a vaga da outra TV (o canal de verdade não sintonizava).
-  // Sem saber as telas (lista pelo M3U), fica desligada
-  var PV_MBPS = 15, PV_TELAS = 3;
+  // A lista está só nesta TV? O fornecedor (API Xtream) conta as conexões abertas na assinatura; as desta TV (o que
+  // está tocando e o que ela fechou há pouco, que ele ainda conta) saem da conta (Player.minhas). Só com a lista livre
+  // ficam a prévia e a tela dupla: cada uma toma mais um acesso, e com outra TV assistindo o canal dela cairia.
+  // Pergunta no máximo a cada 2 min (cada pergunta é um acesso no painel do fornecedor); a resposta vale 5 min
+  var uso = { at: 0, outras: null, ativas: 0, lendo: false };
+  function livre() { return uso.outras === 0 && Date.now() - uso.at < 5 * 60000 && app.cat && app.cat.telas >= 2; }
+  // bolinha no canto de cima: quantos acessos simultâneos o fornecedor conta (só com 2 ou mais; resposta de até 5 min)
+  function usoBadge() {
+    var n = Date.now() - uso.at < 5 * 60000 ? uso.ativas : 0, b = $('usoN');
+    b.textContent = n > 9 ? '9+' : n;
+    b.className = n >= 2 ? (n >= 3 ? 'n3' : '') : 'hidden';
+    document.body.classList.toggle('uso', n >= 2);
+  }
+  // assistindo: confere a cada 2 min (a bolinha acompanha a outra TV ligar ou desligar)
+  setInterval(function () { if (Player.active || duo.on) checkUso(); usoBadge(); }, 120000);
+  function checkUso(force) {
+    var c = activePlaylist() && Xtream.creds(activePlaylist().url);
+    if (!c || uso.lendo || (!force && Date.now() - uso.at < 120000)) return Promise.resolve(livre());
+    uso.lendo = true;
+    var antes = livre();
+    return Xtream.info(c).then(function (i) {
+      uso = { at: Date.now(), outras: Math.max(0, (i.ativas || 0) - Player.minhas()), ativas: +i.ativas || 0, lendo: false };
+      if (i.telas && app.cat) app.cat.telas = i.telas;
+      usoBadge();
+      if (livre() !== antes) {
+        if (!previewOn()) stopPreview();
+        markDirty();
+        if (app.view === 'live' && !Player.active) renderLive();
+      }
+      return livre();
+    }, function () { uso.lendo = false; return livre(); });
+  }
+  // tela dupla: só com a lista livre (sem saber, pergunta e some até a resposta)
+  function duoOk() { checkUso(); return livre(); }
+  // prévia: com a lista livre e internet medida que aguenta com folga (abrir um canal a cada foco travava as mais
+  // fracas); sem medida, mede
+  var PV_MBPS = 15;
   function previewOn() {
-    if (!app.cat || !(app.cat.telas >= PV_TELAS)) return false;
+    checkUso();
+    if (!livre()) return false;
     if (!band.at) { measureBand(); return false; }
     return band.mbps >= PV_MBPS;
   }
@@ -3217,7 +3248,7 @@ var App = (function () {
     Player.open({
       url: ch.u, live: true, title: ch.n, sub: ch.num + '  ·  ' + ch.g + (ch.q ? '  ·  ' + ch.q : ''), logo: ch.l, why: whyFail, troca: troca || '',
       osd: function () { return liveOsd(ch); },
-      onduo: duoOk() ? function () { openDuo(ch, list); } : null,
+      onduo: function () { openDuo(ch, list); },
       onquality: function () { openQMenu(ch, function () { playLive(ch, list, 'Trocando para ' + qName(ch, ch.vi) + '…'); }); },
       // travando (ou caiu) na automática: desce uma qualidade e anota a internet mais fraca para os outros canais
       onstall: function () {
@@ -3248,6 +3279,7 @@ var App = (function () {
     if (app.view === 'live' && live.groups[live.gi].items === list) live.ci = list.indexOf(ch);
     if (app.view === 'guide' && guideItems() === list) guide.ci = list.indexOf(ch);
     enterPlayer();
+    setTimeout(checkUso, 20000); // já com este canal contando lá (no máximo uma pergunta a cada 2 min)
   }
 
   // rodapé do player ao vivo: programa no ar, barra com horários e o próximo
@@ -3328,10 +3360,16 @@ var App = (function () {
     return h && okItem(app.idx[h.id]) ? app.idx[h.id] : list[(list.indexOf(ch) + 1) % list.length];
   }
 
+  var duoAgora = false; // a lista acabou de ser conferida livre
   function openDuo(ch, list) {
     list = list && list.length >= DUO_CARDS ? list : app.cat.live; // listas curtas (Continuar, favoritos) dão pouca escolha
     if (list.length < 2) return toast('É preciso ter pelo menos dois canais');
-    if (!duoOk()) return toast('A tela dupla usa dois acessos ao mesmo tempo: esta assinatura permite 1');
+    // confere na hora se a lista está só nesta TV (a tela dupla toma dois acessos)
+    if (!duoAgora) return checkUso(true).then(function (ok) {
+      if (!ok) return toast(app.cat && app.cat.telas === 1 ? 'A tela dupla usa dois acessos ao mesmo tempo: esta assinatura permite 1'
+        : 'Outra TV está usando a lista agora: a tela dupla precisa de dois acessos livres');
+      duoAgora = true; openDuo(ch, list); duoAgora = false;
+    });
     Player.close();
     stopPreview();
     duo.on = true;

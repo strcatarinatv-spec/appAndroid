@@ -724,6 +724,14 @@ html.tv { background: transparent; } /* o vídeo do AVPlay fica atrás da págin
 }
 #net svg { width: 34px; height: 34px; margin-right: 12px; }
 #net:not(.hidden) + #corner { top: 110px; }
+#usoN {
+    position: absolute; right: 18px; top: 18px; z-index: 96; width: 48px; height: 48px; border-radius: 50%;
+    font-size: 28px; font-weight: 800; line-height: 44px; text-align: center; color: #fff;
+    background: -webkit-linear-gradient(top, #ffa94d, #e8730c); background: linear-gradient(#ffa94d, #e8730c);
+    border: 2px solid rgba(255, 255, 255, .85); box-shadow: 0 4px 14px rgba(0, 0, 0, .55);
+}
+#usoN.n3 { background: -webkit-linear-gradient(top, #ff7a6e, #d93025); background: linear-gradient(#ff7a6e, #d93025); }
+body.uso #corner, body.uso #net { right: 80px; }
 #chNum {
     position: absolute; right: 100px; top: 170px; z-index: 45; min-width: 300px; padding: 26px 40px; border-radius: 22px;
     text-align: right; background: rgba(11, 13, 18, .92); border: 2px solid #343840;

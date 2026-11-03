@@ -17,6 +17,16 @@ var Player = (function () {
   var hls = null; // só no navegador (testes): o Chrome não toca HLS nativamente
 
   function avplay() { return window.webapis && webapis.avplay; }
+
+  // conexões que esta TV abriu com o fornecedor: ele continua contando cada uma por ~1 min depois de fechada.
+  // Player.minhas(): quantas das que ele conta agora são desta TV (para o app saber se outra TV usa a lista)
+  var aberturas = [], LINGER_MS = 90000;
+  function abriu() { aberturas.push(Date.now()); }
+  p.minhas = function () {
+    var t = Date.now();
+    aberturas = aberturas.filter(function (x) { return t - x < LINGER_MS; });
+    return Math.max(aberturas.length, duo.on ? 2 : p.active || pv ? 1 : 0);
+  };
   function spin(on) { $('pSpin').classList.toggle('hidden', !on); }
 
   function message(text) {
@@ -169,6 +179,7 @@ var Player = (function () {
   function openAv(my) {
     var av = webapis.avplay;
     try {
+      if (!o.audio) abriu(); // rádio não é do fornecedor
       av.open(o.url);
       av.setDisplayRect(0, 0, 1920, 1080);
       av.setListener({
@@ -220,6 +231,7 @@ var Player = (function () {
     };
     // ignora o erro atrasado do vídeo anterior (liberado com src vazio)
     v.onerror = function () { if (v.currentSrc) fail(my, 'Formato não suportado no navegador (na TV usa o player nativo)'); };
+    if (!o.audio) abriu();
     webPlay(v, o.url, o.live && !o.audio, function () { return my === gen; }, function (h) { hls = h; },
       function () { fail(my, 'Não foi possível reproduzir este stream'); });
   }
@@ -305,6 +317,7 @@ var Player = (function () {
     if (avplay()) {
       var av = webapis.avplay;
       try {
+        abriu();
         av.open(url);
         av.setDisplayRect(rect.x, rect.y, rect.w, rect.h);
         av.setListener({
@@ -323,6 +336,7 @@ var Player = (function () {
     v.style.display = 'block';
     v.onplaying = function () { done(true); };
     v.onerror = function () { if (v.currentSrc) done(false); };
+    abriu();
     webPlay(v, url, true, function () { return my === gen; }, function (h) { hls = h; }, function () { done(false); });
   };
 
@@ -363,6 +377,7 @@ var Player = (function () {
     if (avplay()) {
       try {
         var av = duo.ps[i] || (duo.ps[i] = webapis.avplaystore.getPlayer());
+        abriu();
         av.open(url);
         av.setDisplayRect(rect.x, rect.y, rect.w, rect.h);
         av.setListener({
@@ -389,6 +404,7 @@ var Player = (function () {
     v.muted = i !== duo.audio;
     v.onplaying = function () { done(true); };
     v.onerror = function () { if (v.currentSrc) done(false); };
+    abriu();
     webPlay(v, url, true, function () { return my === duo.gen[i]; }, function (h) { duo.hls[i] = h; }, function () { done(false); });
   };
 
