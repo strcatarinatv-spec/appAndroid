@@ -70,6 +70,20 @@ var Player = (function () {
       return;
     }
     if (connectedAt && Date.now() - connectedAt > 30000) retries = 0; // estava tocando bem: queda nova
+    // na primeira falha, pergunta ao fornecedor: com as telas da assinatura todas em uso, não insiste (cada tentativa
+    // seria mais uma conexão contando lá); fica a mensagem e o canal abre de novo quando a pessoa pedir
+    if (!retries && o.why && !o.perguntou) {
+      o.perguntou = true;
+      stopMedia();
+      spin(true);
+      message('Conferindo a assinatura…');
+      var q = gen;
+      return o.why(function (t, cheio) {
+        if (q !== gen || !p.active) return;
+        if (cheio) { spin(false); message(t); showOsd(true); return; }
+        fail(q, text);
+      });
+    }
     if (retries === 1 && o.onstall && o.onstall()) return; // caiu 2× seguidas: tenta numa qualidade menor
     if (retries === MAX_RETRIES && o.onstall && o.onstall()) return; // antes de insistir: qualidade menor
     retries++;
@@ -82,7 +96,11 @@ var Player = (function () {
     message(insiste ? 'Sem sinal do canal. Tentando de novo a cada 10 s...' : 'Sinal perdido, reconectando... (' + retries + '/' + MAX_RETRIES + ')');
     showOsd(true);
     var again = gen;
-    if (insiste && retries === MAX_RETRIES + 1 && o.why) o.why(function (t) { if (t && again === gen && p.active) message(t + ' Tentando de novo a cada 10 s...'); });
+    if (insiste && retries === MAX_RETRIES + 1 && o.why) o.why(function (t, cheio) {
+      if (!t || again !== gen || !p.active) return;
+      if (cheio) { clearTimeout(retryTimer); spin(false); return message(t); } // assinatura cheia: para de tentar
+      message(t + ' Tentando de novo a cada 10 s...');
+    });
     retryTimer = setTimeout(function () { if (again === gen) start(); }, insiste ? 10000 : 2000 * retries);
   }
 
@@ -544,6 +562,8 @@ var Player = (function () {
 
   // o app redesenha o rodapé (barra de opções do ao vivo); keep: não some sozinho
   p.osd = function (keep) { if (p.active) showOsd(keep); };
+  // esconde o rodapé agora (menu parado há tempo); pausado continua à mostra
+  p.hideOsd = function () { if (!p.active || paused) return; clearTimeout(osdTimer); $('player').classList.remove('show'); };
 
   p.key = function (k) {
     if (!p.active) return false;

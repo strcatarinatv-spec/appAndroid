@@ -1,7 +1,7 @@
 /* cTV — telas, catálogo e integração com a nuvem */
 var App = (function () {
   var K = Nav.K;
-  var VERSION = '1.10.0'; // a mesma de config.xml; aparece no painel
+  var VERSION = '1.10.1'; // a mesma de config.xml; aparece no painel
   var ROW_MAX = 30, GRID_PAGE = 60, LIST_ROWS = 11;
   // modo aberto: o app já vem com esta lista (dentro do pacote) e não precisa de servidor nem conta.
   // Só sinais que as próprias emissoras publicam abertamente; ver lista-padrao.m3u
@@ -559,7 +559,7 @@ var App = (function () {
     setTimeout(checkTelas, 500);
   }
 
-  // quantas telas a assinatura aceita (1 desliga a prévia). Uma pergunta por dia: cada uma é um acesso no painel do fornecedor
+  // quantas telas a assinatura aceita (menos de 3 desliga a prévia; 1 também a tela dupla). Uma pergunta por dia: cada uma é um acesso no painel do fornecedor
   function checkTelas() {
     var c = activePlaylist() && Xtream.creds(activePlaylist().url), cat = app.cat, u = c && M3U.hash(c.m3u), t = stored('ctv.telas');
     if (!c) return;
@@ -1812,6 +1812,7 @@ var App = (function () {
     fm.t = setTimeout(function () {
       fm.t = null;
       if (Player.active) zapKey(K.ENTER) || channelKey(K.ENTER) || liveBarKey(K.ENTER) || vodBarKey(K.ENTER) || Player.key(K.ENTER);
+      menusIdle(); // o OK chegou atrasado (esperando o 2º toque): a barra abriu agora
     }, 350);
     return true;
   }
@@ -1876,7 +1877,7 @@ var App = (function () {
     $('liveInfo').innerHTML = ch ? pvBox(ch) + chInfo(ch) +
       '<div class="keys"><span><i class="k ok">OK</i> tela cheia</span><span><i class="k ok">Segure OK</i> ' +
       (isFav(ch) ? 'tirar dos favoritos' : 'favoritar') + '</span><span><i class="k ok">0–9</i> ir ao canal</span>' +
-      '<span><i class="k green"></i> tela dupla</span><span><i class="k blue"></i> buscar</span></div>' : '';
+      (duoOk() ? '<span><i class="k green"></i> tela dupla</span>' : '') + '<span><i class="k blue"></i> buscar</span></div>' : '';
     schedulePreview(ch);
   }
 
@@ -2633,12 +2634,15 @@ var App = (function () {
       '<em>' + (!previewOn() ? 'Aperte OK para assistir' : mine && pv.err ? 'Sem prévia deste canal' : 'Sintonizando…') + '</em></div>';
   }
 
-  // assinatura de 1 tela: sem prévia nem tela dupla (cada canal em foco abriria uma conexão, e o fornecedor recusa o de verdade)
+  // assinatura de 1 tela: sem tela dupla (ela usa dois acessos ao mesmo tempo; quando um lado não abre, ela avisa)
   function duoOk() { return !(app.cat && app.cat.telas === 1); }
-  // prévia: só com internet medida que aguenta com folga (abrir um canal a cada foco travava as mais fracas); sem medida, mede
-  var PV_MBPS = 15;
+  // prévia: só com internet medida que aguenta com folga (abrir um canal a cada foco travava as mais fracas); sem medida, mede.
+  // E só com 3 telas ou mais: cada canal da prévia fica contando como conexão no fornecedor por ~1 min depois de fechado,
+  // e numa assinatura de 2 telas dividida por duas TVs isso tomava a vaga da outra TV (o canal de verdade não sintonizava).
+  // Sem saber as telas (lista pelo M3U), fica desligada
+  var PV_MBPS = 15, PV_TELAS = 3;
   function previewOn() {
-    if (!duoOk()) return false;
+    if (!app.cat || !(app.cat.telas >= PV_TELAS)) return false;
     if (!band.at) { measureBand(); return false; }
     return band.mbps >= PV_MBPS;
   }
@@ -2646,19 +2650,20 @@ var App = (function () {
   // não tocou: pergunta ao fornecedor (API Xtream) se a assinatura está ativa e se as telas dela estão todas em uso.
   // Só diz o motivo quando ele é confirmado; senão fica a mensagem do player
   // a resposta vale 2 min: as tentativas seguidas e a troca de canal não perguntam de novo ao fornecedor
-  var why = { at: 0, msg: '' };
+  // cb(texto, cheio): cheio = todas as telas da assinatura em uso (o player não insiste: não abre)
+  var why = { at: 0, msg: '', cheio: false };
   function whyFail(cb) {
     var c = activePlaylist() && Xtream.creds(activePlaylist().url);
     if (!c) return cb('');
-    if (Date.now() - why.at < 120000) return cb(why.msg);
+    if (Date.now() - why.at < 120000) return cb(why.msg, why.cheio);
     var done = cb;
-    cb = function (m) { why = { at: Date.now(), msg: m }; done(m); };
+    cb = function (m, cheio) { why = { at: Date.now(), msg: m, cheio: !!cheio }; done(m, !!cheio); };
     Xtream.info(c).then(function (i) {
       if (i.status && !/^active$/i.test(i.status)) return cb('O fornecedor diz que a assinatura está ' + (/expired/i.test(i.status) ? 'vencida' : 'bloqueada') + '. Fale com o atendimento.');
       // o fornecedor conta também as conexões que esta TV acabou de fechar (ele demora a soltar): não dá para afirmar
       // que é outro aparelho
-      if (i.telas && i.ativas >= i.telas) return cb('O fornecedor está contando ' + i.ativas + (i.ativas > 1 ? ' conexões abertas' : ' conexão aberta') +
-        ' nesta assinatura (o plano permite ' + i.telas + ' ao mesmo tempo). Pode ser outro aparelho assistindo ou esta TV ainda presa na tentativa anterior: espere 1 minuto que ela solta.');
+      if (i.telas && i.ativas >= i.telas) return cb((i.telas > 1 ? 'Todas as ' + i.telas + ' telas da assinatura estão' : 'A tela da assinatura está') + ' em uso agora (o fornecedor conta ' + i.ativas +
+        '). Pode ser outra TV assistindo, ou o canal anterior desta TV que o fornecedor ainda não soltou: espere 1 minuto e abra de novo.', true);
       cb('');
     }, function () { cb(''); });
   }
@@ -3180,6 +3185,22 @@ var App = (function () {
     return true;
   }
 
+  // menus e barras de opções (qualidade, mais opções, áudio e legendas, barra do canal e do filme, menu do OK duas
+  // vezes, lista de canais por cima do vídeo) fecham sozinhos depois de 15 s sem apertar nada; cada tecla recomeça a conta
+  var idleT, MENU_MS = 15000;
+  function menusIdle() {
+    clearTimeout(idleT);
+    if (!(mn || qm.ch || lb.on || vb.on || fm.on || zp.on)) return;
+    idleT = setTimeout(function () {
+      closeMenu(); closeQMenu();
+      if (fm.on) fmClose();
+      if (zp.on) zapClose();
+      lb.on = vb.on = false;
+      if (vb.item) renderVodBar();
+      Player.hideOsd();
+    }, MENU_MS);
+  }
+
   // controle sem as teclas coloridas (Chromecast, Google TV): as funções delas ficam nas barras de opções
   // (OK no canal ao vivo, ▼ no filme). Basta apertar uma tecla colorida uma vez para o app voltar a mostrá-las
   function semCores() { return !!window.AndroidAv && !localStorage.getItem('ctv.cores'); }
@@ -3187,14 +3208,16 @@ var App = (function () {
   var zapList = null;
 
   // troca: texto de quando é o mesmo canal em outra qualidade ("Trocando para HD…"): o player tenta com calma, sem "sinal perdido"
+  var zap = { t: 0, i: 0, list: null }, ZAP_MS = 900;
   function playLive(ch, list, troca) {
+    clearTimeout(zap.t); zap.list = null;
     if (!okItem(ch)) return askPin(function () { playLive(ch, list); }); // +18: senha antes
     list = list && list.length ? list : [ch];
     zapList = list;
     Player.open({
       url: ch.u, live: true, title: ch.n, sub: ch.num + '  ·  ' + ch.g + (ch.q ? '  ·  ' + ch.q : ''), logo: ch.l, why: whyFail, troca: troca || '',
       osd: function () { return liveOsd(ch); },
-      onduo: function () { openDuo(ch, list); },
+      onduo: duoOk() ? function () { openDuo(ch, list); } : null,
       onquality: function () { openQMenu(ch, function () { playLive(ch, list, 'Trocando para ' + qName(ch, ch.vi) + '…'); }); },
       // travando (ou caiu) na automática: desce uma qualidade e anota a internet mais fraca para os outros canais
       onstall: function () {
@@ -3206,10 +3229,16 @@ var App = (function () {
         playLive(ch, list, 'Internet lenta: mudando para ' + qName(ch, ch.vi) + '…');
         return true;
       },
+      // ▲▼ seguidos: mostra o canal de destino e só abre quando para de apertar (cada canal aberto no caminho ficaria
+      // contando como conexão no fornecedor por ~1 min e tomaria a vaga das outras TVs da assinatura)
       onzap: function (d) {
-        var i = list.indexOf(ch);
         lb.on = false;
-        playLive(list[(i + d + list.length) % list.length], list);
+        clearTimeout(zap.t);
+        zap.i = ((zap.list === list ? zap.i : list.indexOf(ch)) + d + list.length) % list.length;
+        zap.list = list;
+        var to = list[zap.i];
+        toast(to.num + '  ' + to.n);
+        zap.t = setTimeout(function () { zap.list = null; if (Player.active) playLive(to, list); }, ZAP_MS);
       },
       onfav: function () { toggleFav(ch); },
       onclose: leavePlayer
@@ -3258,8 +3287,8 @@ var App = (function () {
   }
   // ⚙ mais opções do canal
   function liveMore(ch) {
-    var items = [{ t: 'Tela dupla', s: 'Dois canais ao mesmo tempo', fn: function () { openDuo(ch, zapList); } },
-                 { t: 'Áudio e legendas', s: 'As faixas que o canal tiver', fn: openTracks }];
+    var items = (duoOk() ? [{ t: 'Tela dupla', s: 'Dois canais ao mesmo tempo', fn: function () { openDuo(ch, zapList); } }] : [])
+      .concat([{ t: 'Áudio e legendas', s: 'As faixas que o canal tiver', fn: openTracks }]);
     if (ch.vs) items.push({ t: 'Qualidade em detalhes', s: 'Automática e a velocidade da internet', fn: function () { openQMenu(ch, function () { playLive(ch, zapList, 'Trocando para ' + qName(ch, ch.vi) + '…'); }); } });
     lb.on = false;
     openMenu('Mais opções · ' + ch.n, items);
@@ -3302,7 +3331,7 @@ var App = (function () {
   function openDuo(ch, list) {
     list = list && list.length >= DUO_CARDS ? list : app.cat.live; // listas curtas (Continuar, favoritos) dão pouca escolha
     if (list.length < 2) return toast('É preciso ter pelo menos dois canais');
-    if (!duoOk()) return toast('A tela dupla precisa de um plano com 2 telas: esta assinatura permite 1');
+    if (!duoOk()) return toast('A tela dupla usa dois acessos ao mesmo tempo: esta assinatura permite 1');
     Player.close();
     stopPreview();
     duo.on = true;
@@ -3334,7 +3363,8 @@ var App = (function () {
     for (var i = 0; i < 2; i++) {
       var c = duo.chs[i], nn = nowNext(c), p = nn && nn.now, r = DUO_RECT[i], sel = i === duo.sel;
       var msg = duo.ok[i] ? '' : duo.err[i]
-        ? (i === 1 && !duo.err[0] ? 'Esta TV não conseguiu abrir o segundo canal ao mesmo tempo' : 'Não foi possível abrir este canal')
+        ? 'Não abriu: a tela dupla usa dois acessos simultâneos da assinatura' + (app.cat && app.cat.telas ? ' (ela permite ' + app.cat.telas + ')' : '') +
+          '. Se outra TV estiver assistindo, não sobra acesso para este lado'
         : 'Sintonizando…';
       html += '<div class="duo-pane' + (sel ? ' sel' : '') + '" style="left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px">' +
         (msg ? '<div class="duo-msg">' + (c.l ? '<img src="' + esc(c.l) + '"/>' : '') + '<span>' + msg + '</span></div>' : '') +
@@ -4262,7 +4292,10 @@ var App = (function () {
 
     Nav.onkey = function (k) {
       if (k >= K.RED && k <= K.BLUE && semCores()) store('ctv.cores', 1); // este controle tem as teclas coloridas
-      return trailerKey(k) || exitKey(k) || qmenuKey(k) || menuKey(k) || duoKey(k) || fmKey(k) || zapKey(k) || channelKey(k) || liveBarKey(k) || vodBarKey(k) || Player.key(k); };
+      var r = trailerKey(k) || exitKey(k) || qmenuKey(k) || menuKey(k) || duoKey(k) || fmKey(k) || zapKey(k) || channelKey(k) || liveBarKey(k) || vodBarKey(k) || Player.key(k);
+      menusIdle();
+      return r;
+    };
     // o selo ⚙ da qualidade abre o menu com o ponteiro do controle (ou o mouse, no PC)
     document.addEventListener('click', function (e) {
       var chip = e.target.closest && e.target.closest('.qchip'), ch = chip && app.idx[chip.getAttribute('data-ch')];
